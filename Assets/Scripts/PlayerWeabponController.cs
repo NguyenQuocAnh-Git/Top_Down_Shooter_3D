@@ -10,7 +10,6 @@ public class PlayerWebponController : MonoBehaviour
 
 
     [SerializeField] private Transform weaponHolder;
-    [SerializeField] private Transform aim;
 
     private void Start()
     {
@@ -30,6 +29,8 @@ public class PlayerWebponController : MonoBehaviour
     }
     public Vector3 BulletDirection()
     {
+        Transform aim = player.aim.Aim();
+
         Vector3 direction = (aim.position - gunPoint.position).normalized;
 
         if(player.aim.CanAimPercisly() == false && player.aim.Target() == null)
