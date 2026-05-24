@@ -2431,7 +2431,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   aimLaser: {fileID: 1778738273}
-  tipLenght: 0.5
   aim: {fileID: 958549681}
   isAimingPrecisly: 1
   isLockingToTarget: 1
@@ -2708,6 +2707,7 @@ LineRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Positions:
+  - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 5}
   m_Parameters:
