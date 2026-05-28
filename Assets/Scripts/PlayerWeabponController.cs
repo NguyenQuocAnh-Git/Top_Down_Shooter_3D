@@ -1,7 +1,10 @@
 using UnityEngine;
 
-public class PlayerWebponController : MonoBehaviour
+public class PlayerWeabponController : MonoBehaviour
 {
+    private const float REFERENCE_BULLET_SPEED = 20;
+    //This is the default speed from whcih our mass formula is derived.
+
     private Player player;
 
     [SerializeField] private GameObject bulletPrefab;
@@ -14,7 +17,7 @@ public class PlayerWebponController : MonoBehaviour
     private void Start()
     {
         player = GetComponent<Player>();
-        player.controls.Charactor.Fire.performed += context => Shoot();
+        player.controls.Character.Fire.performed += context => Shoot();
     }
 
     private void Shoot()
@@ -22,8 +25,10 @@ public class PlayerWebponController : MonoBehaviour
 
         GameObject newBullet = Instantiate(bulletPrefab, gunPoint.position, Quaternion.LookRotation(gunPoint.forward));
 
-        newBullet.GetComponent<Rigidbody>().velocity = BulletDirection() * bulletSpeed;
+        Rigidbody rbNewBullet = newBullet.GetComponent<Rigidbody>();
 
+        rbNewBullet.velocity = BulletDirection() * bulletSpeed;
+        rbNewBullet.mass = REFERENCE_BULLET_SPEED / bulletSpeed;
         Destroy(newBullet, 10);
         GetComponentInChildren<Animator>().SetTrigger("Fire");
     }
@@ -33,7 +38,7 @@ public class PlayerWebponController : MonoBehaviour
 
         Vector3 direction = (aim.position - gunPoint.position).normalized;
 
-        if(player.aim.CanAimPercisly() == false && player.aim.Target() == null)
+        if(player.aim.CanAimPrecisly() == false && player.aim.Target() == null)
         direction.y = 0;
 
         return direction;

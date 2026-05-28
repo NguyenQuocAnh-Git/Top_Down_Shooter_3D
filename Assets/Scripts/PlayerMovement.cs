@@ -1,29 +1,25 @@
-using System;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
     private Player player;
 
+    private CharacterController characterController;
     private PlayerControls controls;
-
-    private CharacterController characterController;    
-
     private Animator animator;
 
-    [Header("Movemnet info")]
+    [Header("Movement info")]
     [SerializeField] private float walkSpeed;
     [SerializeField] private float runSpeed;
     [SerializeField] private float turnSpeed;
-
     private float speed;
-    [SerializeField] private float gravityScale = 9.81f;
-
-    public Vector3 movementDirection;
     private float verticalVelocity;
-    public Vector2 moveInput{get; private set;}
 
-    private bool isRuning;
+    public Vector2 moveInput { get; private set; }
+    private Vector3 movementDirection;
+
+    private bool isRunning;
+
     private void Start()
     {
         player = GetComponent<Player>();
@@ -33,8 +29,10 @@ public class PlayerMovement : MonoBehaviour
 
         speed = walkSpeed;
 
-        AssignControlInput();
+
+        AssignInputEvents();
     }
+
 
     private void Update()
     {
@@ -51,10 +49,9 @@ public class PlayerMovement : MonoBehaviour
         animator.SetFloat("xVelocity", xVelocity, .1f, Time.deltaTime);
         animator.SetFloat("zVelocity", zVelocity, .1f, Time.deltaTime);
 
-        bool playAnimationRun = isRuning & movementDirection.magnitude > 0;
-        animator.SetBool("isRuning", playAnimationRun);
+        bool playRunAnimation = isRunning & movementDirection.magnitude > 0;
+        animator.SetBool("isRunning", playRunAnimation);
     }
-
     private void ApplyRotation()
     {
         Vector3 lookingDirection = player.aim.GetMouseHitInfo().point - transform.position;
@@ -63,6 +60,7 @@ public class PlayerMovement : MonoBehaviour
 
         Quaternion desiredRotation = Quaternion.LookRotation(lookingDirection);
         transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, turnSpeed * Time.deltaTime);
+
     }
     private void ApplyMovement()
     {
@@ -78,31 +76,30 @@ public class PlayerMovement : MonoBehaviour
     {
         if (characterController.isGrounded == false)
         {
-            verticalVelocity -= gravityScale * Time.deltaTime;
+            verticalVelocity -= 9.81f * Time.deltaTime;
             movementDirection.y = verticalVelocity;
         }
         else
             verticalVelocity = -.5f;
     }
-
-    private void AssignControlInput()
+    private void AssignInputEvents()
     {
         controls = player.controls;
 
-        controls.Charactor.Movement.performed += context => moveInput = context.ReadValue<Vector2>();
-        controls.Charactor.Movement.canceled += context => moveInput = Vector2.zero;
+        controls.Character.Movement.performed += context => moveInput = context.ReadValue<Vector2>();
+        controls.Character.Movement.canceled += context => moveInput = Vector2.zero;
 
-
-
-        controls.Charactor.Run.performed += context =>
+        controls.Character.Run.performed += context =>
         {
             speed = runSpeed;
-            isRuning = true;
+            isRunning = true;
         };
-        controls.Charactor.Run.canceled += context =>
+
+
+        controls.Character.Run.canceled += context =>
         {
             speed = walkSpeed;
-            isRuning = false;
+            isRunning = false;
         };
     }
 }
