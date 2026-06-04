@@ -32,7 +32,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.05, y: 0.05, z: 0.05}
+  m_LocalScale: {x: 0.01, y: 0.01, z: 0.01}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
@@ -147,6 +147,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2b01eebccf705f4ba5e091b8f54d56e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cd: {fileID: 7162561838308465631}
+  rb: {fileID: 1630541982037577260}
+  meshRenderer: {fileID: 3640774188930598250}
+  trailRenderer: {fileID: -6479415848919586009}
   bulletImpactFX: {fileID: 4266559762961818354, guid: 7326ad26c6337224d8144cf0e2f4fa68, type: 3}
 --- !u!96 &-6479415848919586009
 TrailRenderer:
@@ -223,7 +227,7 @@ TrailRenderer:
       serializedVersion: 2
       key0: {r: 1, g: 1, b: 1, a: 1}
       key1: {r: 1, g: 1, b: 1, a: 0}
-      key2: {r: 0, g: 0, b: 0, a: 0}
+      key2: {r: 1, g: 1, b: 1, a: 0}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
@@ -231,7 +235,7 @@ TrailRenderer:
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
       ctime1: 65535
-      ctime2: 0
+      ctime2: 65535
       ctime3: 0
       ctime4: 0
       ctime5: 0
@@ -239,7 +243,7 @@ TrailRenderer:
       ctime7: 0
       atime0: 0
       atime1: 65535
-      atime2: 0
+      atime2: 36815
       atime3: 0
       atime4: 0
       atime5: 0

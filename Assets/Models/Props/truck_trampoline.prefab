@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 2644500491172958456}
   - component: {fileID: 6194803326598172711}
   - component: {fileID: 7673324242160660505}
-  - component: {fileID: 3154932459164672218}
+  - component: {fileID: 8657035277592032}
   m_Layer: 7
   m_Name: truck_trampoline
   m_TagString: Untagged
@@ -84,7 +84,7 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &3154932459164672218
+--- !u!64 &8657035277592032
 MeshCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
