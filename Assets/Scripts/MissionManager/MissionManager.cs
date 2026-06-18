@@ -12,6 +12,9 @@ public class MissionManager : MonoBehaviour
     private void Awake()
     {
         instance = this;
+
+        if (GameSessionData.HasSelectedMission)
+            currentMission = GameSessionData.SelectedMission;
     }
 
 

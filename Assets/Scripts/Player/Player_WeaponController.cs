@@ -46,6 +46,12 @@ public class Player_WeaponController : MonoBehaviour
 
     public void SetDefaultWeapon(List<Weapon_Data> newWeaponData)
     {
+        if (newWeaponData == null || newWeaponData.Count == 0)
+        {
+            Debug.LogWarning("No default weapon data assigned to the player.");
+            return;
+        }
+
         defaultWeaponData = new List<Weapon_Data>(newWeaponData);
         weaponSlots.Clear();
 

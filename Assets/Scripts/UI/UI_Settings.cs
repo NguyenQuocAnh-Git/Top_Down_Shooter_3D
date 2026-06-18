@@ -39,8 +39,12 @@ public class UI_Settings : MonoBehaviour
 
     public void OnFriendlyFireToggle()
     {
-        bool friendlyFire = GameManager.instance.friendlyFire;
-        GameManager.instance.friendlyFire = !friendlyFire;
+        bool friendlyFire = friendlyFireToggle.isOn;
+
+        GameSessionData.SetFriendlyFire(friendlyFire);
+
+        if (GameManager.instance != null)
+            GameManager.instance.friendlyFire = friendlyFire;
     }
 
     public void LoadSettings()
@@ -53,13 +57,20 @@ public class UI_Settings : MonoBehaviour
 
         if (friendlyFireInt == 1)
             newFriendlyFire = true;
-        
+
+        GameSessionData.SetFriendlyFire(newFriendlyFire);
+
+        if (GameManager.instance != null)
+            GameManager.instance.friendlyFire = newFriendlyFire;
+
         friendlyFireToggle.isOn = newFriendlyFire;  
     }
 
     private void OnDisable()
     {
-        bool friendlyFire = GameManager.instance.friendlyFire;
+        bool friendlyFire = GameManager.instance != null
+            ? GameManager.instance.friendlyFire
+            : GameSessionData.FriendlyFire;
         int friendlyFireInt = friendlyFire ? 1 : 0;
 
         PlayerPrefs.SetInt("FriendlyFire", friendlyFireInt);

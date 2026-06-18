@@ -12,10 +12,14 @@ public class GameManager : MonoBehaviour
     public bool friendlyFire;
     [Space]
     public bool quickStart;
+    [SerializeField] private List<Weapon_Data> fallbackWeaponData;
 
     private void Awake()
     {
         instance = this;
+
+        if (GameSessionData.HasFriendlyFireSetting)
+            friendlyFire = GameSessionData.FriendlyFire;
 
         player = FindObjectOfType<Player>();
     }
@@ -46,7 +50,14 @@ public class GameManager : MonoBehaviour
 
     private void SetDefaultWeaponsForPlayer()
     {
-        List<Weapon_Data> newList = UI.instance.weaponSelection.SelectedWeaponData();
+        List<Weapon_Data> newList = GameSessionData.GetSelectedWeapons();
+
+        if (newList.Count == 0 && UI.instance != null && UI.instance.weaponSelection != null)
+            newList = UI.instance.weaponSelection.SelectedWeaponData();
+
+        if (newList.Count == 0 && fallbackWeaponData != null)
+            newList = new List<Weapon_Data>(fallbackWeaponData);
+
         player.weapon.SetDefaultWeapon(newList);
     }
 }

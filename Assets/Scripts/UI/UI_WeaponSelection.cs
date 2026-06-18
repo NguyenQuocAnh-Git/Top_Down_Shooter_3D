@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
-using UnityEditor;
 using UnityEngine;
 
 public class UI_WeaponSelection : MonoBehaviour
@@ -34,6 +33,7 @@ public class UI_WeaponSelection : MonoBehaviour
     {
         if (AtLeastOneWeaponSelected())
         {
+            GameSessionData.SetSelectedWeapons(SelectedWeaponData());
             UI.instance.SwitchTo(nextUIToSwitchOn);
             UI.instance.StartLevelGeneration();
         }
