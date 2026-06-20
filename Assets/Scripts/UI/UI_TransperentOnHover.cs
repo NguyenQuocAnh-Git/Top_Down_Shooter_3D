@@ -13,11 +13,13 @@ public class UI_TransperentOnHover : MonoBehaviour, IPointerEnterHandler, IPoint
 
     private bool hasUIWeaponSlots;
     private Player_WeaponController playerWeaponController;
+
     private void Start()
     {
-        hasUIWeaponSlots = GetComponentInChildren<UI_WeaponSlot>();
-        if(hasUIWeaponSlots)
-            playerWeaponController = FindObjectOfType<Player_WeaponController>();
+        hasUIWeaponSlots = GetComponentInChildren<UI_WeaponSlot>() != null;
+
+        if (hasUIWeaponSlots && GameSessionData.IsCoopSession == false)
+            playerWeaponController = ResolveActivePlayerWeaponController();
 
         // Chache Image components and their original colors
         foreach (var image in GetComponentsInChildren<Image>(true))
@@ -66,8 +68,27 @@ public class UI_TransperentOnHover : MonoBehaviour, IPointerEnterHandler, IPoint
             text.color = originalTextColors[text];
         }
 
-        
-        playerWeaponController?.UpdateWeaponUI();
+        if (playerWeaponController != null)
+            playerWeaponController.UpdateWeaponUI();
+    }
 
+    private static Player_WeaponController ResolveActivePlayerWeaponController()
+    {
+        if (GameManager.instance != null
+            && GameManager.instance.player != null
+            && GameManager.instance.player.gameObject.activeInHierarchy)
+        {
+            return GameManager.instance.player.weapon;
+        }
+
+        Player_WeaponController[] controllers = FindObjectsOfType<Player_WeaponController>(true);
+
+        foreach (Player_WeaponController controller in controllers)
+        {
+            if (controller != null && controller.gameObject.activeInHierarchy)
+                return controller;
+        }
+
+        return null;
     }
 }

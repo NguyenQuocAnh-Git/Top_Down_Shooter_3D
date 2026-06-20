@@ -41,6 +41,9 @@ public class Player : MonoBehaviour
     }
     private void OnDisable()
     {
+        if (GameSessionData.IsCoopSession)
+            return;
+
         controls.Disable();
     }
 

@@ -216,12 +216,15 @@ public class Player_WeaponController : MonoBehaviour
     {
         Transform aim = player.aim.Aim();
 
-        Vector3 direction = (aim.position - GunPoint().position).normalized;
+        Vector3 direction = aim.position - GunPoint().position;
 
         if (player.aim.CanAimPrecisly() == false && player.aim.Target() == null)
             direction.y = 0;
 
-        return direction;
+        if (direction.sqrMagnitude < 0.001f)
+            direction = transform.forward;
+
+        return direction.normalized;
     }
 
     public bool HasOnlyOneWeapon() => weaponSlots.Count <= 1;

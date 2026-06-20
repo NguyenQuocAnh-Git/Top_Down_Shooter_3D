@@ -10,6 +10,8 @@ public class UI : MonoBehaviour
 
     public UI_InGame inGameUI { get; private set; }
     public UI_WeaponSelection weaponSelection { get; private set; }
+    public UI_MissionSelection missionSelection { get; private set; }
+    public UI_ComicPanel comicPanel { get; private set; }
     public UI_GameOver gameOverUI { get; private set; }
     public UI_Settings settingsUI { get; private set; }
     public GameObject victoryScreenUI;
@@ -18,6 +20,7 @@ public class UI : MonoBehaviour
 
     [SerializeField] private GameObject[] UIElements;
     private readonly List<GameObject> runtimeUIElements = new List<GameObject>();
+    private UI_CoopMenu coopMenu;
 
     [Header("Fade Image")]
     [SerializeField] private Image fadeImage;
@@ -31,18 +34,50 @@ public class UI : MonoBehaviour
         instance = this;
         inGameUI = GetComponentInChildren<UI_InGame>(true);
         weaponSelection = GetComponentInChildren<UI_WeaponSelection>(true);
+        missionSelection = GetComponentInChildren<UI_MissionSelection>(true);
+        comicPanel = GetComponentInChildren<UI_ComicPanel>(true);
         gameOverUI = GetComponentInChildren<UI_GameOver>(true);
         settingsUI = GetComponentInChildren<UI_Settings>(true);
     }
     private void Start()
     {
         AssignInputsUI();
-        UI_CoopMenu.EnsureCreated(this);
+        coopMenu = UI_CoopMenu.EnsureCreated(this);
 
         StartCoroutine(ChangeImageAlpha(0, 1.5f, null));
 
         if (ShouldAutoStartGameplay())
-            StartTheGame();
+        {
+            if (GameSessionData.IsCoopSession)
+                CoopGameplayBridge.HandleCoopGameplaySceneStart(this);
+            else
+                StartTheGame();
+        }
+    }
+
+    private void OnEnable()
+    {
+        CoopNetworkManager.Instance.OnMissionSelectionStarted += HandleCoopMissionSelectionStarted;
+        CoopNetworkManager.Instance.OnMissionSelected += HandleCoopMissionSelected;
+        CoopNetworkManager.Instance.OnWeaponSelectionStarted += HandleCoopWeaponSelectionStarted;
+        CoopNetworkManager.Instance.OnComicStarted += HandleCoopComicStarted;
+        CoopNetworkManager.Instance.OnCoopPlayGame += HandleCoopPlayGame;
+        CoopNetworkManager.Instance.OnLobbyReturned += HandleCoopLobbyReturned;
+        CoopNetworkManager.Instance.OnMissionPreviewed += HandleCoopMissionPreviewed;
+    }
+
+    private void OnDisable()
+    {
+        if (CoopNetworkManager.Instance == null)
+            return;
+
+        CoopNetworkManager.Instance.OnMissionSelectionStarted -= HandleCoopMissionSelectionStarted;
+        CoopNetworkManager.Instance.OnMissionSelected -= HandleCoopMissionSelected;
+        CoopNetworkManager.Instance.OnWeaponSelectionStarted -= HandleCoopWeaponSelectionStarted;
+        CoopNetworkManager.Instance.OnComicStarted -= HandleCoopComicStarted;
+        CoopNetworkManager.Instance.OnCoopPlayGame -= HandleCoopPlayGame;
+        CoopNetworkManager.Instance.OnLobbyReturned -= HandleCoopLobbyReturned;
+        CoopNetworkManager.Instance.OnMissionPreviewed -= HandleCoopMissionPreviewed;
     }
 
     public void SwitchTo(GameObject uiToSwitchOn)
@@ -68,10 +103,39 @@ public class UI : MonoBehaviour
 
         if (settingsUI != null && uiToSwitchOn == settingsUI.gameObject)
             settingsUI.LoadSettings();
+
+        if (missionSelection != null
+            && uiToSwitchOn == missionSelection.gameObject
+            && (CoopNetworkManager.Instance == null || CoopNetworkManager.Instance.IsInRoom == false))
+        {
+            missionSelection.ConfigureForSinglePlayer();
+        }
+
+        if (weaponSelection != null
+            && uiToSwitchOn == weaponSelection.gameObject
+            && (CoopNetworkManager.Instance == null || CoopNetworkManager.Instance.IsInRoom == false))
+        {
+            weaponSelection.ConfigureForSinglePlayer();
+        }
+
+        if (comicPanel != null
+            && uiToSwitchOn == comicPanel.gameObject
+            && (CoopNetworkManager.Instance == null || CoopNetworkManager.Instance.IsInRoom == false))
+        {
+            comicPanel.ConfigureForSinglePlayer();
+            comicPanel.SetPointerAdvanceEnabled(true);
+            comicPanel.SetPlayButtonInteractable(true);
+        }
     }
 
     public void StartTheGame()
     {
+        if (CoopNetworkManager.Instance != null && CoopNetworkManager.Instance.IsInRoom)
+        {
+            CoopNetworkManager.Instance.RequestCoopPlayGame();
+            return;
+        }
+
         if (ShouldLoadGameplayScene())
         {
             GameSessionData.MarkGameplayRequestedFromMenu();
@@ -80,6 +144,77 @@ public class UI : MonoBehaviour
         }
 
         StartCoroutine(StartGameSequence());
+    }
+
+    private void HandleCoopMissionSelectionStarted()
+    {
+        if (missionSelection == null)
+            return;
+
+        GameSessionData.ClearGameplaySession();
+        SwitchTo(missionSelection.gameObject);
+        missionSelection.ConfigureForCoop(CoopNetworkManager.Instance.CanLocalPlayerSelectMission, HandleCoopMissionBack);
+    }
+
+    private void HandleCoopMissionSelected(string missionName)
+    {
+        missionSelection?.SelectMissionByName(missionName);
+    }
+
+    private void HandleCoopMissionPreviewed(string missionName)
+    {
+        if (missionSelection == null)
+            return;
+
+        if (string.IsNullOrEmpty(missionName))
+            missionSelection.ClearRemotePreview();
+        else
+            missionSelection.PreviewMissionByName(missionName);
+    }
+
+    private void HandleCoopWeaponSelectionStarted()
+    {
+        if (weaponSelection != null)
+        {
+            SwitchTo(weaponSelection.gameObject);
+            weaponSelection.ConfigureForCoop(CoopNetworkManager.Instance.IsHosting, HandleCoopReturnToLobby);
+        }
+    }
+
+    private void HandleCoopComicStarted()
+    {
+        if (comicPanel == null)
+            return;
+
+        SwitchTo(comicPanel.gameObject);
+        comicPanel.ConfigureForCoop();
+        comicPanel.SetPointerAdvanceEnabled(false);
+        comicPanel.ConfigurePlayButton(CoopNetworkManager.Instance.CanLocalPlayerPressCoopPlay, StartTheGame);
+    }
+
+    private void HandleCoopPlayGame()
+    {
+        GameSessionData.MarkGameplayRequestedFromMenu();
+        Debug.Log("COOP PLAY GAME received by UI. Fusion is loading GameplayScene.");
+    }
+
+    private void HandleCoopMissionBack() => HandleCoopReturnToLobby();
+
+    private void HandleCoopReturnToLobby()
+    {
+        CoopNetworkManager.Instance.ReturnCoopSetupToLobby();
+    }
+
+    private void HandleCoopLobbyReturned()
+    {
+        if (coopMenu == null)
+            coopMenu = UI_CoopMenu.EnsureCreated(this);
+
+        if (coopMenu == null)
+            return;
+
+        SwitchTo(coopMenu.gameObject);
+        coopMenu.ShowExistingLobby();
     }
 
     public void QuitTheGame() => Application.Quit();
@@ -152,6 +287,14 @@ public class UI : MonoBehaviour
 
     private void AssignInputsUI()
     {
+        if (GameSessionData.IsCoopSession)
+        {
+            if (ControlsManager.instance != null)
+                ControlsManager.instance.controls.Character.UIPause.performed += ctx => PauseSwitch();
+
+            return;
+        }
+
         if (GameManager.instance == null || GameManager.instance.player == null)
             return;
 

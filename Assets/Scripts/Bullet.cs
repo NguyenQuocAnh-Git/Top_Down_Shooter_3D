@@ -29,14 +29,15 @@ public class Bullet : MonoBehaviour
         trailRenderer = GetComponent<TrailRenderer>();
     }
 
-    public void BulletSetup(LayerMask allyLayerMask, int bulletDamage, float flyDistance = 100, float impactForce = 100)
+    public void BulletSetup(LayerMask allyLayerMask, int bulletDamage, float flyDistance = 100, float impactForce = 100, bool enableCollider = true)
     {
         this.allyLayerMask = allyLayerMask;
         this.impactForce = impactForce;
         this.bulletDamage = bulletDamage;
 
         bulletDisabled = false;
-        cd.enabled = true;
+        if (cd != null)
+            cd.enabled = enableCollider;
         meshRenderer.enabled = true;
 
         trailRenderer.Clear();
@@ -106,11 +107,21 @@ public class Bullet : MonoBehaviour
         }
     }
 
+    protected void SetImpactFxPrefab(GameObject impactFxPrefab)
+    {
+        bulletImpactFX = impactFxPrefab;
+    }
+
+    public GameObject GetImpactFxPrefab() => bulletImpactFX;
+
     protected void ReturnBulletToPool(float delay = 0) => ObjectPool.instance.ReturnObject(gameObject, delay);
 
 
     protected void CreateImpactFx()
     {
+        if (bulletImpactFX == null)
+            return;
+
         GameObject newFx = Instantiate(bulletImpactFX);
         newFx.transform.position = transform.position;
 

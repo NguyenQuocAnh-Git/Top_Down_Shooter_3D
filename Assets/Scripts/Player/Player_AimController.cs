@@ -1,8 +1,9 @@
-using System;
 using UnityEngine;
 
 public class Player_AimController : MonoBehaviour
 {
+    private const float MinDirectionSqrMagnitude = 0.0025f;
+
     private Player player;
     private PlayerControls controls;
 
@@ -11,6 +12,8 @@ public class Player_AimController : MonoBehaviour
 
     [Header("Aim control")]
     [SerializeField] private Transform aim;
+    [SerializeField] private float minAimDistance = 2f;
+    [SerializeField] private float visualAimDistance = 8f;
 
     [SerializeField] private bool isAimingPrecisly;
     [SerializeField] private bool isLockingToTarget;
@@ -30,10 +33,12 @@ public class Player_AimController : MonoBehaviour
 
     private Vector2 mouseInput;
     private RaycastHit lastKnownMouseHit;
+    private Vector3 lastFlatAimDirection;
 
     private void Start()
     {
         player = GetComponent<Player>();
+        lastFlatAimDirection = transform.forward;
         AssignInputEvents();
     }
     private void Update()
@@ -50,8 +55,8 @@ public class Player_AimController : MonoBehaviour
         if(Input.GetKeyDown(KeyCode.L))
             isLockingToTarget = !isLockingToTarget;
 
-        UpdateAimVisuals();
         UpdateAimPosition();
+        UpdateAimVisuals();
         UpdateCameraPosition();
     }
 
@@ -73,6 +78,7 @@ public class Player_AimController : MonoBehaviour
 
         weaponModel.transform.LookAt(aim);
         weaponModel.gunPoint.LookAt(aim);
+        player.weaponVisuals.RefreshLeftHandTarget();
 
 
         Transform gunPoint = player.weapon.GunPoint();
@@ -108,10 +114,69 @@ public class Player_AimController : MonoBehaviour
             return;
         }   
 
-        aim.position = GetMouseHitInfo().point;
+        Vector3 mouseAimPosition = GetMouseAimWorldPosition();
+        Vector3 aimDirection = ResolveFlatAimDirection(mouseAimPosition, true);
+        Vector3 visualAimPosition = transform.position + aimDirection * Mathf.Max(minAimDistance, visualAimDistance);
+        Vector3 rawFlatDirection = mouseAimPosition - transform.position;
+        rawFlatDirection.y = 0f;
+        bool aimPointIsTooClose = rawFlatDirection.sqrMagnitude < minAimDistance * minAimDistance;
 
-        if (!isAimingPrecisly)
-            aim.position = new Vector3(aim.position.x, transform.position.y + 1, aim.position.z);
+        visualAimPosition.y = isAimingPrecisly && aimPointIsTooClose == false
+            ? mouseAimPosition.y
+            : transform.position.y + 1;
+        aim.position = visualAimPosition;
+    }
+
+    private Vector3 ResolveFlatAimDirection(Vector3 aimPosition, bool updateLastDirection)
+    {
+        Vector3 flatDirection = aimPosition - transform.position;
+        flatDirection.y = 0f;
+
+        if (flatDirection.sqrMagnitude >= MinDirectionSqrMagnitude)
+        {
+            flatDirection.Normalize();
+
+            if (updateLastDirection)
+                lastFlatAimDirection = flatDirection;
+
+            return flatDirection;
+        }
+
+        if (lastFlatAimDirection.sqrMagnitude < 0.001f)
+            lastFlatAimDirection = transform.forward;
+
+        return lastFlatAimDirection;
+    }
+
+    public Vector3 StableAimDirection() => ResolveFlatAimDirection(GetMouseAimWorldPosition(), false);
+
+    private Vector3 GetMouseAimWorldPosition()
+    {
+        Vector3 raycastAimPosition = GetMouseHitInfo().point;
+        Vector3 flatOffset = raycastAimPosition - transform.position;
+        flatOffset.y = 0f;
+
+        if (flatOffset.sqrMagnitude >= minAimDistance * minAimDistance)
+            return raycastAimPosition;
+
+        return GetMouseGroundPlaneIntersection();
+    }
+
+    private Vector3 GetMouseGroundPlaneIntersection()
+    {
+        Camera mainCamera = Camera.main;
+
+        if (mainCamera == null)
+            return transform.position + lastFlatAimDirection * minAimDistance;
+
+        Ray ray = mainCamera.ScreenPointToRay(mouseInput);
+        float aimHeight = transform.position.y + 1f;
+        Plane aimPlane = new Plane(Vector3.up, new Vector3(0f, aimHeight, 0f));
+
+        if (aimPlane.Raycast(ray, out float distance))
+            return ray.GetPoint(distance);
+
+        return transform.position + lastFlatAimDirection * minAimDistance;
     }
 
 
@@ -120,10 +185,11 @@ public class Player_AimController : MonoBehaviour
     public Transform Target()
     {
         Transform target = null;
+        Transform hitTransform = GetMouseHitInfo().transform;
 
-        if (GetMouseHitInfo().transform.GetComponent<Target>() != null)
+        if (hitTransform != null && hitTransform.GetComponent<Target>() != null)
         {
-            target = GetMouseHitInfo().transform;
+            target = hitTransform;
         }
 
         return target;
@@ -155,13 +221,13 @@ public class Player_AimController : MonoBehaviour
     {
         float actualMaxCameraDistance = player.movement.moveInput.y < -.5f ? minCameraDistance : maxCameraDistance;
 
-        Vector3 desiredCameraPosition = GetMouseHitInfo().point;
-        Vector3 aimDirection = (desiredCameraPosition - transform.position).normalized;
+        Vector3 mouseAimPosition = GetMouseAimWorldPosition();
+        Vector3 aimDirection = ResolveFlatAimDirection(mouseAimPosition, false);
 
-        float distanceToDesierdPosition = Vector3.Distance(transform.position, desiredCameraPosition);
+        float distanceToDesierdPosition = Vector3.Distance(transform.position, mouseAimPosition);
         float clampedDistance = Mathf.Clamp(distanceToDesierdPosition, minCameraDistance, actualMaxCameraDistance);
 
-        desiredCameraPosition = transform.position + aimDirection * clampedDistance;
+        Vector3 desiredCameraPosition = transform.position + aimDirection * clampedDistance;
         desiredCameraPosition.y = transform.position.y + 1;
 
         return desiredCameraPosition;

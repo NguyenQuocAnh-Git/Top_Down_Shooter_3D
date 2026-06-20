@@ -50,6 +50,7 @@ public class Player_WeaponVisuals : MonoBehaviour
 
         anim.SetFloat("ReloadSpeed", reloadSpeed);
         anim.SetTrigger("Reload");
+        ReduceLeftHandIKWeight();
         ReduceRigWeight();
     }
 
@@ -59,7 +60,7 @@ public class Player_WeaponVisuals : MonoBehaviour
 
         float equipmentSpeed = player.weapon.CurrentWeapon().equipmentSpeed;
 
-        leftHandIK.weight = 0;
+        ReduceLeftHandIKWeight();
         ReduceRigWeight();
         anim.SetTrigger("EquipWeapon");
         anim.SetFloat("EquipType", ((float)equipType));
@@ -161,41 +162,79 @@ public class Player_WeaponVisuals : MonoBehaviour
 
     #region Animation Rigging Methods
 
+    public void RefreshLeftHandTarget()
+    {
+        AttachLeftHand();
+    }
+
     private void AttachLeftHand()
     {
-        Transform targetTransform = CurrentWeaponModel().holdPoint;
+        WeaponModel weaponModel = CurrentWeaponModel();
 
-        leftHandIK_Target.localPosition = targetTransform.localPosition;
-        leftHandIK_Target.localRotation = targetTransform.localRotation;
+        if (weaponModel == null || weaponModel.holdPoint == null || leftHandIK_Target == null)
+            return;
+
+        leftHandIK_Target.SetPositionAndRotation(weaponModel.holdPoint.position, weaponModel.holdPoint.rotation);
     }
 
     private void UpdateLeftHandIKWeight()
     {
+        if (leftHandIK == null)
+            return;
+
         if (shouldIncrease_LeftHandIKWieght)
         {
             leftHandIK.weight += leftHandIkWeightIncreaseRate * Time.deltaTime;
 
             if (leftHandIK.weight >= 1)
+            {
+                leftHandIK.weight = 1;
                 shouldIncrease_LeftHandIKWieght = false;
+            }
         }
     }
     private void UpdateRigWigth()
     {
+        if (rig == null)
+            return;
+
         if (shouldIncrease_RigWeight)
         {
             rig.weight += rigWeightIncreaseRate * Time.deltaTime;
 
             if (rig.weight >= 1)
+            {
+                rig.weight = 1;
                 shouldIncrease_RigWeight = false;
+            }
         }
     }
     private void ReduceRigWeight()
     {
+        shouldIncrease_RigWeight = false;
+
+        if (rig == null)
+            return;
+
         rig.weight = .15f;
     }
 
+    private void ReduceLeftHandIKWeight()
+    {
+        shouldIncrease_LeftHandIKWieght = false;
+
+        if (leftHandIK == null)
+            return;
+
+        leftHandIK.weight = 0;
+    }
+
     public void MaximizeRigWeight() => shouldIncrease_RigWeight = true;
-    public void MaximizeLeftHandWeight() => shouldIncrease_LeftHandIKWieght = true;
+    public void MaximizeLeftHandWeight()
+    {
+        AttachLeftHand();
+        shouldIncrease_LeftHandIKWieght = true;
+    }
 
     #endregion
 }

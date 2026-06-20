@@ -7,6 +7,8 @@ using UnityEngine.UI;
 public class UI_WeaponSelectionButton : UI_Button
 {
     private UI_WeaponSelection weaponSelectionUI;
+    private CanvasGroup canvasGroup;
+    private bool localInteractionEnabled = true;
 
     [SerializeField] private Weapon_Data weaponData;
     [SerializeField] private Image weaponIcon;
@@ -24,10 +26,18 @@ public class UI_WeaponSelectionButton : UI_Button
 
         weaponSelectionUI = GetComponentInParent<UI_WeaponSelection>();
         weaponIcon.sprite = weaponData.weaponIcon;
+        canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+
+        ApplyLocalInteractionState();
     }
 
     public override void OnPointerEnter(PointerEventData eventData)
     {
+        if (localInteractionEnabled == false)
+            return;
+
         base.OnPointerEnter(eventData);
         weaponIcon.color = Color.yellow;
 
@@ -38,6 +48,9 @@ public class UI_WeaponSelectionButton : UI_Button
 
     public override void OnPointerExit(PointerEventData eventData)
     {
+        if (localInteractionEnabled == false)
+            return;
+
         base.OnPointerExit(eventData);
         weaponIcon.color = Color.white;
 
@@ -47,6 +60,9 @@ public class UI_WeaponSelectionButton : UI_Button
 
     public override void OnPointerDown(PointerEventData eventData)
     {
+        if (localInteractionEnabled == false)
+            return;
+
         base.OnPointerDown(eventData);
         weaponIcon.color = Color.white;
 
@@ -74,5 +90,34 @@ public class UI_WeaponSelectionButton : UI_Button
 
 
         emptySlot = null;
+    }
+
+    public void SetLocalInteractionEnabled(bool enabled)
+    {
+        localInteractionEnabled = enabled;
+        ApplyLocalInteractionState();
+
+        if (enabled == false)
+        {
+            if (weaponIcon != null)
+                weaponIcon.color = Color.white;
+
+            emptySlot?.UpdateSlotInfo(null);
+            emptySlot = null;
+        }
+    }
+
+    private void ApplyLocalInteractionState()
+    {
+        if (canvasGroup == null)
+        {
+            canvasGroup = GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+                canvasGroup = gameObject.AddComponent<CanvasGroup>();
+        }
+
+        canvasGroup.interactable = localInteractionEnabled;
+        canvasGroup.blocksRaycasts = localInteractionEnabled;
+        canvasGroup.alpha = 1f;
     }
 }

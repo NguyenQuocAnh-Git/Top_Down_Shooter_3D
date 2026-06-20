@@ -17,19 +17,35 @@ public class UI_WeaponSlot : MonoBehaviour
 
     public void UpdateWeaponSlot(Weapon myWeapon, bool activeWeapon)
     {
-        if (myWeapon == null)
+        if (weaponIcon == null)
+            weaponIcon = GetComponentInChildren<Image>();
+
+        if (ammoText == null)
+            ammoText = GetComponentInChildren<TextMeshProUGUI>();
+
+        if (myWeapon == null || myWeapon.weaponData == null)
         {
-            weaponIcon.color = Color.clear;
-            ammoText.text = "";
+            if (weaponIcon != null)
+                weaponIcon.color = Color.clear;
+
+            if (ammoText != null)
+                ammoText.text = string.Empty;
+
             return;
         }
 
         Color newColor = activeWeapon ? Color.white : new Color(1, 1, 1, .35f);
 
-        weaponIcon.color = newColor;
-        weaponIcon.sprite = myWeapon.weaponData.weaponIcon;
+        if (weaponIcon != null)
+        {
+            weaponIcon.color = newColor;
+            weaponIcon.sprite = myWeapon.weaponData.weaponIcon;
+        }
 
-        ammoText.text = myWeapon.bulletsInMagazine + "/" + myWeapon.totalReserveAmmo;
-        ammoText.color = Color.white;
+        if (ammoText != null)
+        {
+            ammoText.text = myWeapon.bulletsInMagazine + "/" + myWeapon.totalReserveAmmo;
+            ammoText.color = Color.white;
+        }
     }
 }

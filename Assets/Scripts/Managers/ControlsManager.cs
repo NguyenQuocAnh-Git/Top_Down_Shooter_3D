@@ -17,9 +17,24 @@ public class ControlsManager : MonoBehaviour
 
     private void Start()
     {
-        player = GameManager.instance.player;
+        if (GameSessionData.IsCoopSession)
+        {
+            SwitchToCoopCharacterControls();
+            return;
+        }
 
+        player = GameManager.instance.player;
         SwitchToCharacterControls();
+    }
+
+    public void SwitchToCoopCharacterControls()
+    {
+        controls.Character.Enable();
+        controls.Car.Disable();
+        controls.UI.Disable();
+
+        if (UI.instance != null && UI.instance.inGameUI != null)
+            UI.instance.inGameUI.SwitchToCharcaterUI();
     }
 
     public void SwitchToCharacterControls()

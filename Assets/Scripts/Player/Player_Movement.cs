@@ -1,8 +1,8 @@
 using UnityEngine;
-using UnityEngine.UIElements;
 
 public class Player_Movement : MonoBehaviour
 {
+    private const float MinLookDirectionSqrMagnitude = 0.01f;
     private Player player;
 
     private CharacterController characterController;
@@ -66,8 +66,12 @@ public class Player_Movement : MonoBehaviour
     }
     private void ApplyRotation()
     {
-        Vector3 lookingDirection = player.aim.GetMouseHitInfo().point - transform.position;
+        Vector3 lookingDirection = player.aim.StableAimDirection();
         lookingDirection.y = 0f;
+
+        if (lookingDirection.sqrMagnitude < MinLookDirectionSqrMagnitude)
+            return;
+
         lookingDirection.Normalize();
 
         Quaternion desiredRotation = Quaternion.LookRotation(lookingDirection);
