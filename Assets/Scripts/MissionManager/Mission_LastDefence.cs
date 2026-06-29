@@ -31,6 +31,7 @@ public class Mission_LastDefence : Mission
 
     public override void StartMission()
     {
+        defenceBegun = false;
         defencePoint = FindObjectOfType<MissionEnd_Trigger>().transform.position;
         respawnPoints = new List<Transform>(ClosestPoints(amountOfRespawnPoints));
 

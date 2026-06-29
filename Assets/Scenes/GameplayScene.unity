@@ -27293,6 +27293,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   aimLaser: {fileID: 1669532594}
   aim: {fileID: 489048668}
+  minAimDistance: 2
+  visualAimDistance: 8
   isAimingPrecisly: 0
   isLockingToTarget: 1
   cameraTarget: {fileID: 2141233248}
@@ -30251,7 +30253,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!64 &1889305720
 MeshCollider:
   m_ObjectHideFlags: 0

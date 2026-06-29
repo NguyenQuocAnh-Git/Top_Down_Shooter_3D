@@ -58,4 +58,9 @@ public class Pickup_Weapon : Interactable
 
         ObjectPool.instance.ReturnObject(gameObject);
     }
+
+    public void GrantToNetworkPlayer(NetworkPlayerWeapon networkWeapon)
+    {
+        networkWeapon?.PickupWeapon(weaponData);
+    }
 }

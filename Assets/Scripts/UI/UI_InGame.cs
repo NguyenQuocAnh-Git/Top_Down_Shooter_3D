@@ -52,9 +52,17 @@ public class UI_InGame : MonoBehaviour
 
     public void UpdateMissionInfo(string missionText, string missionDetails = "")
     {
-
         this.missionText.text = missionText;
         this.missionDetails.text = missionDetails;
+
+        if (GameSessionData.IsCoopSession)
+            CoopMissionSync.Instance?.PublishMissionInfo(missionText, missionDetails);
+    }
+
+    public void SetMissionInfoFromNetwork(string missionTitle, string details)
+    {
+        missionText.text = missionTitle;
+        missionDetails.text = details;
     }
 
     public void UpdateWeaponUI(List<Weapon> weaponSlots, Weapon currentWeapon)

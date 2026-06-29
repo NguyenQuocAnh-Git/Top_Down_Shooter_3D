@@ -9,6 +9,7 @@ public class NetworkPlayerHealth : NetworkBehaviour
     [Networked] public NetworkBool IsDead { get; private set; }
 
     private NetworkPlayer networkPlayer;
+    private bool deathVisualApplied;
 
     public int MaxHealth => maxHealth;
 
@@ -27,7 +28,7 @@ public class NetworkPlayerHealth : NetworkBehaviour
 
     public void ApplyDamageFromHost(int damage)
     {
-        if (Object.HasStateAuthority == false || IsDead)
+        if (Object.HasStateAuthority == false || damage <= 0 || IsDead)
             return;
 
         CurrentHealth = Mathf.Max(0, CurrentHealth - damage);
@@ -39,6 +40,12 @@ public class NetworkPlayerHealth : NetworkBehaviour
     public override void Render()
     {
         RefreshLocalHealthUI();
+
+        if (IsDead && deathVisualApplied == false)
+        {
+            deathVisualApplied = true;
+            networkPlayer?.Presentation?.ApplyDeathVisual();
+        }
     }
 
     private void RefreshLocalHealthUI()

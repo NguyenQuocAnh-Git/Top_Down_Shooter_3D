@@ -75,6 +75,49 @@ public class NetworkPlayerWeapon : NetworkBehaviour
 
     public bool WeaponReady() => weaponReady && isReloading == false && isEquipping == false;
 
+    public void AddReserveAmmo(WeaponType weaponType, int amount)
+    {
+        foreach (Weapon weapon in weaponSlots)
+        {
+            if (weapon.weaponType != weaponType)
+                continue;
+
+            weapon.totalReserveAmmo += Mathf.Max(0, amount);
+            RefreshWeaponUI();
+            return;
+        }
+    }
+
+    public void PickupWeapon(Weapon_Data weaponData)
+    {
+        if (weaponData == null)
+            return;
+
+        foreach (Weapon weapon in weaponSlots)
+        {
+            if (weapon.weaponType != weaponData.weaponType)
+                continue;
+
+            weapon.totalReserveAmmo += new Weapon(weaponData).bulletsInMagazine;
+            RefreshWeaponUI();
+            return;
+        }
+
+        Weapon pickedUp = new Weapon(weaponData);
+        if (weaponSlots.Count < maxSlots)
+        {
+            weaponSlots.Add(pickedUp);
+            EquipWeapon(weaponSlots.Count - 1);
+        }
+        else if (weaponSlots.Count > 0)
+        {
+            weaponSlots[currentWeaponSlotIndex] = pickedUp;
+            currentWeapon = pickedUp;
+            ApplyCurrentWeaponVisual(false);
+            RefreshWeaponUI();
+        }
+    }
+
     public Vector3 BulletDirection()
     {
         return networkPlayer != null ? networkPlayer.BulletDirection() : transform.forward;
@@ -166,20 +209,29 @@ public class NetworkPlayerWeapon : NetworkBehaviour
             return;
 
         NetworkObject targetObject = ResolveHitTarget(collision.collider);
+        int targetEnemyId = ResolveNetworkEnemyId(collision.collider);
         int damage = currentWeapon.bulletDamage;
         Vector3 hitPoint = collision.contacts.Length > 0 ? collision.contacts[0].point : collision.transform.position;
         Vector3 hitNormal = collision.contacts.Length > 0 ? collision.contacts[0].normal : Vector3.up;
 
-        RpcSubmitHit(targetObject, damage, hitPoint, hitNormal);
+        if (Object.HasStateAuthority)
+        {
+            if (ValidateHit(Object.InputAuthority, targetObject, targetEnemyId, damage, hitPoint))
+                ApplyHostDamage(targetObject, targetEnemyId, damage, hitPoint);
+
+            return;
+        }
+
+        RpcSubmitHit(targetObject, targetEnemyId, damage, hitPoint, hitNormal);
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority)]
-    private void RpcSubmitHit(NetworkObject targetObject, int damage, Vector3 hitPoint, Vector3 hitNormal, RpcInfo info = default)
+    private void RpcSubmitHit(NetworkObject targetObject, int targetEnemyId, int damage, Vector3 hitPoint, Vector3 hitNormal, RpcInfo info = default)
     {
-        if (ValidateHit(info.Source, targetObject, damage, hitPoint) == false)
+        if (ValidateHit(info.Source, targetObject, targetEnemyId, damage, hitPoint) == false)
             return;
 
-        ApplyHostDamage(targetObject, damage, hitPoint);
+        ApplyHostDamage(targetObject, targetEnemyId, damage, hitPoint);
     }
 
     private void FireLocalBullet()
@@ -406,7 +458,7 @@ public class NetworkPlayerWeapon : NetworkBehaviour
         return networkBehaviour != null ? networkBehaviour.Object : null;
     }
 
-    private bool ValidateHit(PlayerRef shooter, NetworkObject targetObject, int damage, Vector3 hitPoint)
+    private bool ValidateHit(PlayerRef shooter, NetworkObject targetObject, int targetEnemyId, int damage, Vector3 hitPoint)
     {
         if (damage <= 0 || currentWeapon == null || damage > currentWeapon.bulletDamage)
             return false;
@@ -420,6 +472,19 @@ public class NetworkPlayerWeapon : NetworkBehaviour
 
         if (distance > maxDistance)
             return false;
+
+        if (targetEnemyId >= 0)
+        {
+            NetworkEnemy targetEnemy = NetworkEnemy.Find(targetEnemyId);
+            if (targetEnemy == null)
+                return false;
+
+            float hitTolerance = Mathf.Max(4f, currentWeapon != null ? currentWeapon.gunDistance * 0.15f : 4f);
+            if (Vector3.Distance(targetEnemy.transform.position, hitPoint) > hitTolerance)
+                return false;
+
+            return HasEnemyLineOfSight(shooterPlayer.GunPoint.position, targetEnemy, hitPoint);
+        }
 
         if (targetObject == null)
             return true;
@@ -454,8 +519,70 @@ public class NetworkPlayerWeapon : NetworkBehaviour
         return true;
     }
 
-    private void ApplyHostDamage(NetworkObject targetObject, int damage, Vector3 hitPoint)
+    private static bool HasEnemyLineOfSight(Vector3 origin, NetworkEnemy targetEnemy, Vector3 hitPoint)
     {
+        if (targetEnemy == null)
+            return false;
+
+        if (Vector3.Distance(targetEnemy.transform.position, hitPoint) <= 1.75f)
+            return true;
+
+        Vector3 destination = hitPoint;
+        Vector3 direction = destination - origin;
+        float distance = direction.magnitude;
+
+        if (distance <= 0.01f)
+            return true;
+
+        if (Physics.Raycast(origin, direction.normalized, out RaycastHit hit, distance + 0.5f) == false)
+            return true;
+
+        NetworkEnemy hitEnemy = hit.collider.GetComponentInParent<NetworkEnemy>();
+        if (hitEnemy != null && hitEnemy.Id == targetEnemy.Id)
+            return true;
+
+        Enemy_HitBox enemyHitBox = hit.collider.GetComponentInParent<Enemy_HitBox>();
+        if (enemyHitBox != null)
+        {
+            NetworkEnemy parentEnemy = enemyHitBox.GetComponentInParent<NetworkEnemy>();
+            return parentEnemy != null && parentEnemy.Id == targetEnemy.Id;
+        }
+
+        return false;
+    }
+
+    private static int ResolveNetworkEnemyId(Collider collider)
+    {
+        if (collider == null)
+            return -1;
+
+        NetworkEnemy networkEnemy = collider.GetComponentInParent<NetworkEnemy>();
+        if (networkEnemy != null)
+            return networkEnemy.Id;
+
+        Enemy enemy = collider.GetComponentInParent<Enemy>();
+        if (enemy == null)
+            return -1;
+
+        networkEnemy = enemy.GetComponent<NetworkEnemy>();
+        return networkEnemy != null ? networkEnemy.Id : -1;
+    }
+
+    private void ApplyHostDamage(NetworkObject targetObject, int targetEnemyId, int damage, Vector3 hitPoint)
+    {
+        if (targetEnemyId < 0)
+            targetEnemyId = ResolveNetworkEnemyIdFromPoint(hitPoint);
+
+        if (targetEnemyId >= 0)
+        {
+            NetworkEnemy networkEnemy = NetworkEnemy.Find(targetEnemyId);
+            if (networkEnemy != null)
+            {
+                networkEnemy.ApplyHostDamage(damage);
+                return;
+            }
+        }
+
         if (targetObject != null)
         {
             NetworkPlayerHealth targetHealth = targetObject.GetComponent<NetworkPlayerHealth>();
@@ -473,17 +600,37 @@ public class NetworkPlayerWeapon : NetworkBehaviour
             }
         }
 
-        Collider[] overlaps = Physics.OverlapSphere(hitPoint, 0.35f);
+        Collider[] overlaps = Physics.OverlapSphere(hitPoint, 0.75f);
 
         foreach (Collider overlap in overlaps)
         {
-            IDamagable damagable = overlap.GetComponent<IDamagable>();
-            if (damagable != null)
+            NetworkEnemy overlapEnemy = overlap.GetComponentInParent<NetworkEnemy>();
+            if (overlapEnemy != null && overlapEnemy.IsReplica == false)
             {
-                damagable.TakeDamage(damage);
+                overlapEnemy.ApplyHostDamage(damage);
+                return;
+            }
+
+            NetworkPlayerHitbox playerHitbox = overlap.GetComponentInParent<NetworkPlayerHitbox>();
+            if (playerHitbox != null)
+            {
+                playerHitbox.TakeDamage(damage);
                 return;
             }
         }
+    }
+
+    private static int ResolveNetworkEnemyIdFromPoint(Vector3 hitPoint)
+    {
+        Collider[] overlaps = Physics.OverlapSphere(hitPoint, 0.75f);
+        for (int i = 0; i < overlaps.Length; i++)
+        {
+            int enemyId = ResolveNetworkEnemyId(overlaps[i]);
+            if (enemyId >= 0)
+                return enemyId;
+        }
+
+        return -1;
     }
 
     private static NetworkPlayer FindPlayerForRef(PlayerRef playerRef)

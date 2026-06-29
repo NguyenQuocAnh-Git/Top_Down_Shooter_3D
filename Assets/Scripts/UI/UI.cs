@@ -228,6 +228,9 @@ public class UI : MonoBehaviour
     }
     public void StartLevelGeneration()
     {
+        if (GameSessionData.IsCoopSession)
+            return;
+
         if (LevelGenerator.instance != null)
             LevelGenerator.instance.InitializeGeneration();
     }

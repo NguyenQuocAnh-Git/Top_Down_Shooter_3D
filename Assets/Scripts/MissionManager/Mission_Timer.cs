@@ -22,7 +22,8 @@ public class Mission_Timer : Mission
 
         if (currentTime < 0)
         {
-            //GameManager.instance.GameOver();
+            if (GameSessionData.IsCoopSession)
+                CoopMissionSync.Instance?.ConfirmMissionFailure();
         }
 
         string timeText = System.TimeSpan.FromSeconds(currentTime).ToString("mm':'ss");

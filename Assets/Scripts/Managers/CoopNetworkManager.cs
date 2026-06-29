@@ -71,6 +71,17 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     public event Action OnWeaponSelectionStarted;
     public event Action OnComicStarted;
     public event Action OnCoopPlayGame;
+    public event Action<byte[]> OnCoopLevelLayoutReceived;
+    public event Action<byte[]> OnCoopEnemyProjectileReceived;
+    public event Action<byte[]> OnCoopMissionStateReceived;
+    public event Action<bool> OnCoopMatchResultReceived;
+    public event Action<int, byte[]> OnCoopPickupClaimRequested;
+    public event Action<byte[]> OnCoopPickupResolved;
+    public event Action<int> OnCoopTeamWipeReported;
+    public event Action<int> OnCoopExtractionReached;
+    public event Action<int, Vector3> OnCoopKeyPickupRequested;
+    public event Action<Vector3> OnCoopKeyRemoved;
+    public event Action<Vector3> OnCoopCarDelivered;
 
     public bool IsHosting => runner != null && runner.IsRunning && runner.IsServer;
     public bool IsInRoom => runner != null && runner.IsRunning && (runner.IsServer || runner.IsClient);
@@ -79,6 +90,7 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     public bool CanLocalPlayerSelectWeapons => IsInRoom && currentSetupStep == CoopSetupStep.WeaponSelection && IsLocalPlayerWeaponReady() == false;
     public bool CanLocalPlayerPressCoopPlay => IsHosting && currentSetupStep == CoopSetupStep.Comic;
     public string CurrentRoomName { get; private set; }
+    public NetworkRunner ActiveRunner => runner;
 
     private NetworkRunner runner;
     private NetworkSceneManagerDefault sceneManager;
@@ -104,9 +116,22 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     private static readonly ReliableKey MissionPreviewKey = ReliableKey.FromInts(42, 1, 0, 7);
     private static readonly ReliableKey DisplayNameAnnounceKey = ReliableKey.FromInts(42, 1, 0, 8);
     private static readonly ReliableKey DisplayNamesStateKey = ReliableKey.FromInts(42, 1, 0, 9);
+    private static readonly ReliableKey CoopLevelLayoutKey = ReliableKey.FromInts(42, 2, 0, 0);
+    private static readonly ReliableKey[] CoopEnemyProjectileKeys = CreateReliableKeyRing(42, 2, 2, 16);
+    private static readonly ReliableKey CoopMissionStateKey = ReliableKey.FromInts(42, 3, 0, 0);
+    private static readonly ReliableKey CoopMatchResultKey = ReliableKey.FromInts(42, 3, 0, 1);
+    private static readonly ReliableKey CoopPickupClaimKey = ReliableKey.FromInts(42, 3, 0, 2);
+    private static readonly ReliableKey CoopPickupResolvedKey = ReliableKey.FromInts(42, 3, 0, 3);
+    private static readonly ReliableKey CoopTeamWipeReportKey = ReliableKey.FromInts(42, 3, 0, 4);
+    private static readonly ReliableKey CoopExtractionReachedKey = ReliableKey.FromInts(42, 3, 0, 5);
+    private static readonly ReliableKey CoopKeyPickupRequestKey = ReliableKey.FromInts(42, 3, 0, 6);
+    private static readonly ReliableKey CoopKeyRemovedKey = ReliableKey.FromInts(42, 3, 0, 7);
+    private static readonly ReliableKey CoopCarDeliveredKey = ReliableKey.FromInts(42, 3, 0, 8);
 
     private readonly Dictionary<int, string> playerDisplayNames = new Dictionary<int, string>();
     private string pendingLocalNickname = string.Empty;
+    private byte[] pendingCoopLevelLayout;
+    private int enemyProjectileReliableChannel;
 
     private enum CoopSetupStep : byte
     {
@@ -125,6 +150,7 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
         }
 
         instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
     private void OnDestroy()
@@ -188,6 +214,121 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     }
 
     public void Disconnect() => _ = DisconnectAsync();
+
+    public void BroadcastCoopLevelLayout(byte[] payload)
+    {
+        if (runner == null || runner.IsServer == false || payload == null || payload.Length == 0)
+            return;
+
+        pendingCoopLevelLayout = payload;
+        BroadcastToPlayers(CoopLevelLayoutKey, payload);
+    }
+
+    public void BroadcastCoopEnemyProjectile(byte[] payload)
+    {
+        if (runner == null || runner.IsServer == false || payload == null || payload.Length == 0)
+            return;
+
+        ReliableKey key = CoopEnemyProjectileKeys[enemyProjectileReliableChannel % CoopEnemyProjectileKeys.Length];
+        enemyProjectileReliableChannel++;
+        BroadcastToPlayers(key, payload);
+    }
+
+    public void BroadcastCoopMissionState(byte[] payload)
+    {
+        if (runner == null || runner.IsServer == false || payload == null || payload.Length == 0)
+            return;
+
+        BroadcastToPlayers(CoopMissionStateKey, payload);
+    }
+
+    public void BroadcastCoopMatchResult(bool victory)
+    {
+        if (runner == null || runner.IsServer == false)
+            return;
+
+        byte[] payload = { victory ? (byte)1 : (byte)0 };
+        BroadcastToPlayers(CoopMatchResultKey, payload);
+        OnCoopMatchResultReceived?.Invoke(victory);
+    }
+
+    public void SendCoopPickupClaim(byte[] payload)
+    {
+        if (runner == null || runner.IsRunning == false || payload == null || payload.Length == 0)
+            return;
+
+        if (runner.IsServer)
+        {
+            OnCoopPickupClaimRequested?.Invoke(runner.LocalPlayer.PlayerId, payload);
+            return;
+        }
+
+        foreach (PlayerRef player in runner.ActivePlayers)
+        {
+            if (player.PlayerId != hostPlayerId)
+                continue;
+
+            runner.SendReliableDataToPlayer(player, CoopPickupClaimKey, payload);
+            return;
+        }
+    }
+
+    public void BroadcastCoopPickupResolved(byte[] payload)
+    {
+        if (runner == null || runner.IsServer == false || payload == null || payload.Length == 0)
+            return;
+
+        BroadcastToPlayers(CoopPickupResolvedKey, payload);
+        OnCoopPickupResolved?.Invoke(payload);
+    }
+
+    public void SendCoopTeamWipeReport()
+    {
+        SendCoopGameplaySignalToHost(CoopTeamWipeReportKey, Array.Empty<byte>());
+    }
+
+    public void SendCoopExtractionReached(int playerId)
+    {
+        SendCoopGameplaySignalToHost(CoopExtractionReachedKey, new[] { (byte)Mathf.Clamp(playerId, 0, 255) });
+    }
+
+    public void SendCoopKeyPickupRequest(Vector3 position)
+    {
+        SendCoopGameplaySignalToHost(CoopKeyPickupRequestKey, EncodeVector3(position));
+    }
+
+    public void BroadcastCoopKeyRemoved(Vector3 position)
+    {
+        if (runner == null || runner.IsServer == false)
+            return;
+
+        byte[] payload = EncodeVector3(position);
+        BroadcastToPlayers(CoopKeyRemovedKey, payload);
+        OnCoopKeyRemoved?.Invoke(position);
+    }
+
+    public void SendCoopCarDelivered(Vector3 position)
+    {
+        SendCoopGameplaySignalToHost(CoopCarDeliveredKey, EncodeVector3(position));
+    }
+
+    public void ReturnPostMatchToCoopLobby()
+    {
+        if (runner == null || runner.IsServer == false || runner.IsRunning == false)
+            return;
+
+        AdvanceSetupSequence("COOP match ended.");
+        EnterCoopStep(CoopSetupStep.Lobby, true, "Returned from COOP match.");
+        GameSessionData.EndCoopGameplaySession();
+        runner.LoadScene(GameSessionData.MenuSceneName, LoadSceneMode.Single);
+    }
+
+    public bool TryConsumePendingLevelLayout(out byte[] payload)
+    {
+        payload = pendingCoopLevelLayout;
+        pendingCoopLevelLayout = null;
+        return payload != null && payload.Length > 0;
+    }
 
     public void ToggleLocalReady()
     {
@@ -542,6 +683,7 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
         currentSetupStep = CoopSetupStep.Lobby;
         CurrentRoomName = string.Empty;
         pendingLocalNickname = string.Empty;
+        pendingCoopLevelLayout = null;
     }
 
     private void ResetSetupState()
@@ -1217,6 +1359,12 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
         RaiseEmptyLobbySlots();
         RaiseStatus(message);
         OnRoomClosed?.Invoke(message);
+
+        if (SceneManager.GetActiveScene().name == GameSessionData.GameplaySceneName)
+        {
+            GameSessionData.ClearCoopLobbySession();
+            SceneManager.LoadScene(GameSessionData.MenuSceneName);
+        }
     }
 
     private NetworkRunner EnsureRunner()
@@ -1301,6 +1449,9 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
 
             if (currentSetupStep == CoopSetupStep.WeaponSelection && AllPlayersWeaponReady())
                 EnterCoopStep(CoopSetupStep.Comic, true, "Remaining players already locked weapons after a player left.");
+
+            if (GameSessionData.IsCoopSession)
+                CoopLog($"Client {player.PlayerId} left gameplay; host and remaining clients continue.");
         }
 
         RefreshLobbySlots();
@@ -1317,6 +1468,12 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
             return;
 
         HandleRemoteRoomClosed("Host closed the COOP room.");
+
+        if (runner == activeRunner)
+            runner = null;
+
+        if (activeRunner != null)
+            Destroy(activeRunner);
     }
 
     public void OnConnectedToServer(NetworkRunner activeRunner)
@@ -1386,6 +1543,7 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
             Run = controls.Character.Run.IsPressed(),
             ReloadPressed = controls.Character.Reload.WasPressedThisFrame(),
             ToggleWeaponModePressed = controls.Character.ToogleWeaponMode.WasPressedThisFrame(),
+            InteractPressed = controls.Character.Interaction.WasPressedThisFrame(),
             EquipSlotPressed = ResolveCoopEquipSlotPressed(controls)
         };
 
@@ -1439,6 +1597,88 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public void OnReliableDataReceived(NetworkRunner activeRunner, PlayerRef player, ReliableKey key, ArraySegment<byte> data)
     {
+        if (key == CoopMissionStateKey)
+        {
+            if (activeRunner.IsServer == false)
+                OnCoopMissionStateReceived?.Invoke(CopyReliablePayload(data));
+            return;
+        }
+
+        if (key == CoopMatchResultKey)
+        {
+            if (activeRunner.IsServer == false && data.Count > 0)
+                OnCoopMatchResultReceived?.Invoke(data.Array[data.Offset] != 0);
+            return;
+        }
+
+        if (key == CoopPickupClaimKey)
+        {
+            if (activeRunner.IsServer)
+                OnCoopPickupClaimRequested?.Invoke(player.PlayerId, CopyReliablePayload(data));
+            return;
+        }
+
+        if (key == CoopPickupResolvedKey)
+        {
+            if (activeRunner.IsServer == false)
+                OnCoopPickupResolved?.Invoke(CopyReliablePayload(data));
+            return;
+        }
+
+        if (key == CoopTeamWipeReportKey)
+        {
+            if (activeRunner.IsServer)
+                DispatchCoopTeamWipeReport(player.PlayerId);
+            return;
+        }
+
+        if (key == CoopExtractionReachedKey)
+        {
+            if (activeRunner.IsServer && data.Count > 0)
+                DispatchCoopExtractionReached(data.Array[data.Offset]);
+            return;
+        }
+
+        if (key == CoopKeyPickupRequestKey)
+        {
+            if (activeRunner.IsServer && TryDecodeVector3(data, out Vector3 position))
+                DispatchCoopKeyPickupRequest(player.PlayerId, position);
+            return;
+        }
+
+        if (key == CoopKeyRemovedKey)
+        {
+            if (activeRunner.IsServer == false && TryDecodeVector3(data, out Vector3 removedPosition))
+                OnCoopKeyRemoved?.Invoke(removedPosition);
+            return;
+        }
+
+        if (key == CoopCarDeliveredKey)
+        {
+            if (activeRunner.IsServer && TryDecodeVector3(data, out Vector3 carPosition))
+                OnCoopCarDelivered?.Invoke(carPosition);
+            return;
+        }
+
+        if (key == CoopLevelLayoutKey)
+        {
+            if (activeRunner.IsServer)
+                return;
+
+            pendingCoopLevelLayout = CopyReliablePayload(data);
+            OnCoopLevelLayoutReceived?.Invoke(pendingCoopLevelLayout);
+            return;
+        }
+
+        if (ContainsReliableKey(CoopEnemyProjectileKeys, key))
+        {
+            if (activeRunner.IsServer)
+                return;
+
+            OnCoopEnemyProjectileReceived?.Invoke(CopyReliablePayload(data));
+            return;
+        }
+
         if (key == SetupStepKey)
         {
             if (data.Count < 1)
@@ -1559,9 +1799,126 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
     public void OnSceneLoadDone(NetworkRunner activeRunner)
     {
         activeRunner.ProvideInput = true;
+
+        if (SceneManager.GetActiveScene().name == GameSessionData.MenuSceneName)
+        {
+            GameSessionData.EndCoopGameplaySession();
+            RaiseStatus("Returned to the COOP lobby.");
+            OnLobbyReturned?.Invoke();
+            RefreshLobbySlots();
+            return;
+        }
+
         RaiseStatus("COOP gameplay scene loaded.");
         CoopGameplayBridge.HandleSceneLoadDone(activeRunner);
     }
 
     public void OnSceneLoadStart(NetworkRunner activeRunner) { }
+
+    private static byte[] CopyReliablePayload(ArraySegment<byte> data)
+    {
+        var payload = new byte[data.Count];
+        if (data.Count > 0)
+            Buffer.BlockCopy(data.Array, data.Offset, payload, 0, data.Count);
+
+        return payload;
+    }
+
+    private static ReliableKey[] CreateReliableKeyRing(int group, int category, int stream, int count)
+    {
+        var keys = new ReliableKey[count];
+        for (int i = 0; i < count; i++)
+            keys[i] = ReliableKey.FromInts(group, category, stream, i);
+
+        return keys;
+    }
+
+    private void SendCoopGameplaySignalToHost(ReliableKey key, byte[] payload)
+    {
+        if (runner == null || runner.IsRunning == false)
+            return;
+
+        payload ??= Array.Empty<byte>();
+
+        if (runner.IsServer)
+        {
+            DispatchGameplaySignalToHost(runner.LocalPlayer, key, payload);
+            return;
+        }
+
+        foreach (PlayerRef player in runner.ActivePlayers)
+        {
+            if (player.PlayerId != hostPlayerId)
+                continue;
+
+            runner.SendReliableDataToPlayer(player, key, payload);
+            return;
+        }
+    }
+
+    private void DispatchGameplaySignalToHost(PlayerRef player, ReliableKey key, byte[] payload)
+    {
+        if (key == CoopTeamWipeReportKey)
+        {
+            DispatchCoopTeamWipeReport(player.PlayerId);
+            return;
+        }
+
+        if (key == CoopExtractionReachedKey && payload.Length > 0)
+        {
+            DispatchCoopExtractionReached(payload[0]);
+            return;
+        }
+
+        if (key == CoopKeyPickupRequestKey && TryDecodeVector3(new ArraySegment<byte>(payload), out Vector3 position))
+        {
+            DispatchCoopKeyPickupRequest(player.PlayerId, position);
+            return;
+        }
+
+        if (key == CoopCarDeliveredKey && TryDecodeVector3(new ArraySegment<byte>(payload), out Vector3 carPosition))
+            OnCoopCarDelivered?.Invoke(carPosition);
+    }
+
+    private void DispatchCoopTeamWipeReport(int reporterPlayerId) =>
+        OnCoopTeamWipeReported?.Invoke(reporterPlayerId);
+
+    private void DispatchCoopExtractionReached(int playerId) =>
+        OnCoopExtractionReached?.Invoke(playerId);
+
+    private void DispatchCoopKeyPickupRequest(int playerId, Vector3 position) =>
+        OnCoopKeyPickupRequested?.Invoke(playerId, position);
+
+    private static byte[] EncodeVector3(Vector3 position)
+    {
+        byte[] payload = new byte[12];
+        Buffer.BlockCopy(BitConverter.GetBytes(position.x), 0, payload, 0, 4);
+        Buffer.BlockCopy(BitConverter.GetBytes(position.y), 0, payload, 4, 4);
+        Buffer.BlockCopy(BitConverter.GetBytes(position.z), 0, payload, 8, 4);
+        return payload;
+    }
+
+    private static bool TryDecodeVector3(ArraySegment<byte> data, out Vector3 position)
+    {
+        position = default;
+        if (data.Count < 12)
+            return false;
+
+        position = new Vector3(
+            BitConverter.ToSingle(data.Array, data.Offset),
+            BitConverter.ToSingle(data.Array, data.Offset + 4),
+            BitConverter.ToSingle(data.Array, data.Offset + 8));
+        return true;
+    }
+
+    private static bool ContainsReliableKey(ReliableKey[] keys, ReliableKey key)
+    {
+        foreach (ReliableKey candidate in keys)
+        {
+            if (candidate == key)
+                return true;
+        }
+
+        return false;
+    }
 }

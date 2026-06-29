@@ -408,8 +408,8 @@ Do phases in order. Mark items done in this file or in project tracking.
 | Footstep / weapon SFX | ✅ | **All players**, 3D positional audio |
 | `cameraDistance` per weapon | ✅ | Local on equip |
 | Friendly fire | ✅ | Keep `GameSessionData.FriendlyFire` |
-| Ragdoll / death visual | ❌ | Phase 3 |
-| Camera handoff on death | ❌ | Phase 3; interim: **camera frozen at death position** |
+| Ragdoll / death visual | ✅ | Phase 3 |
+| Camera handoff on death | ✅ | Phase 3 |
 | `Player_Interaction` | ❌ | Later phase |
 | Debug keys P / L | ❌ | Off in v1.5 |
 | HUD | ✅ | Keep existing `UI_InGame`; nameplates → Phase 4 |
@@ -544,17 +544,19 @@ No other SP script changes unless adding the same `IsCoopSession` guard pattern.
 
 ### Phase 2 — Level + enemies
 
-- [ ] Host-seeded `LevelGenerator`
-- [ ] `NetworkEnemy` replication
-- [ ] Host disconnect ends all; client disconnect continues
+- [x] Host-seeded `LevelGenerator`
+- [x] `NetworkEnemy` replication
+- [x] Host disconnect ends all; client disconnect continues
+
+Implementation note: enemy transform/health/animation state is replicated through Fusion tick state on the host-owned `NetworkPlayer`; `ReliableData` is not used for realtime enemy movement.
 
 ### Phase 3 — Full mission
 
-- [ ] `CoopMissionSync` (all mission types)
-- [ ] Pickups first-claim
-- [ ] Team death + camera handoff
-- [ ] Win / Game Over host confirm
-- [ ] Post-match return to same coop lobby
+- [x] `CoopMissionSync` (all mission types)
+- [x] Pickups first-claim
+- [x] Team death + camera handoff
+- [x] Win / Game Over host confirm
+- [x] Post-match return to same coop lobby
 
 ### Phase 4 — Polish
 
@@ -633,7 +635,7 @@ Add new questions here before implementing ambiguous behavior. Remove or resolve
 | Phase 1.5 SFX | All players, 3D positional |
 | Phase 1.5 prefab workflow | Manual duplicate SP Player → `NetworkPlayer` prefab |
 | Phase 1.5 cameraTarget | Embedded in prefab, not scene reference |
-| Phase 1.5 death (interim) | Camera frozen at death; ragdoll + handoff → Phase 3 |
+| Phase 1.5 death (interim) | Ragdoll + camera handoff implemented in Phase 3 |
 | Phase 1.5 debug keys P/L | Off |
 | Phase 1.5 HUD | Keep `UI_InGame`; nameplates → Phase 4 |
 | Phase 1.5 prediction | LAN + `NetworkCharacterController` sufficient |
@@ -694,4 +696,4 @@ Full spec for replacing capsule `NetworkPlayer` with SP-equivalent visual and fe
 
 ---
 
-*Last updated: 2026-06-20 — Phase 1.5 Player Visual Parity spec added*
+*Last updated: 2026-06-30 — Phase 3 Full mission implemented*

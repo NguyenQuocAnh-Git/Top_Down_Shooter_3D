@@ -84,6 +84,32 @@ public class CoopGameplayBootstrap : MonoBehaviour
             spawner.SetNetworkPlayerPrefab(prefab);
 
         spawner.SpawnPlayers(runner);
+
+        CoopLevelGenerationHost levelGeneration = GetComponent<CoopLevelGenerationHost>();
+        if (levelGeneration == null)
+            levelGeneration = gameObject.AddComponent<CoopLevelGenerationHost>();
+
+        levelGeneration.Initialize(runner);
+
+        CoopMissionSync missionSync = GetComponent<CoopMissionSync>();
+        if (missionSync == null)
+            missionSync = gameObject.AddComponent<CoopMissionSync>();
+        missionSync.Initialize(runner);
+
+        CoopTeamDeathHandler deathHandler = GetComponent<CoopTeamDeathHandler>();
+        if (deathHandler == null)
+            deathHandler = gameObject.AddComponent<CoopTeamDeathHandler>();
+        deathHandler.Initialize(runner);
+
+        CoopPostMatchFlow postMatch = GetComponent<CoopPostMatchFlow>();
+        if (postMatch == null)
+            postMatch = gameObject.AddComponent<CoopPostMatchFlow>();
+        postMatch.Initialize(runner);
+
+        CoopPickupCoordinator pickupCoordinator = GetComponent<CoopPickupCoordinator>();
+        if (pickupCoordinator == null)
+            pickupCoordinator = gameObject.AddComponent<CoopPickupCoordinator>();
+        pickupCoordinator.Initialize(runner);
     }
 
     public void AssemblePlayerVisual(NetworkPlayer networkPlayer)

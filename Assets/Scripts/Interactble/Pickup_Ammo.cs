@@ -42,6 +42,16 @@ public class Pickup_Ammo : Interactable
         ObjectPool.instance.ReturnObject(gameObject);
     }
 
+    public void GrantToNetworkPlayer(NetworkPlayerWeapon networkWeapon)
+    {
+        if (networkWeapon == null)
+            return;
+
+        List<AmmoData> currentAmmoList = boxType == AmmoBoxType.bigBox ? bigBoxAmmo : smallBoxAmmo;
+        foreach (AmmoData ammo in currentAmmoList)
+            networkWeapon.AddReserveAmmo(ammo.weaponType, GetBulletAmount(ammo));
+    }
+
 
     private int GetBulletAmount(AmmoData ammoData)
     {

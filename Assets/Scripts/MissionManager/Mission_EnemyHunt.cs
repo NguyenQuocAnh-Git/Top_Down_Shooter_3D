@@ -16,6 +16,7 @@ public class Mission_EnemyHunt : Mission
         killsToGo = amountToKill;
         UpdateMissionUI();
 
+        MissionObject_HuntTarget.OnTargetKilled -= EliminateTarget;
         MissionObject_HuntTarget.OnTargetKilled += EliminateTarget;
 
         List<Enemy> validEnemies = new List<Enemy>();

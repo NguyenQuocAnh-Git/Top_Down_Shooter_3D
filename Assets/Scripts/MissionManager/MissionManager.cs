@@ -20,6 +20,10 @@ public class MissionManager : MonoBehaviour
 
     private void Update()
     {
+        if (GameSessionData.IsCoopSession
+            && (CoopNetworkManager.Instance == null || CoopNetworkManager.Instance.IsHosting == false))
+            return;
+
         currentMission?.UpdateMission();
     }
 

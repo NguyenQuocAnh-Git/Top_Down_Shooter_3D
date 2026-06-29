@@ -13,6 +13,24 @@ public class MissionEnd_Trigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (GameSessionData.IsCoopSession)
+        {
+            NetworkPlayer networkPlayer = other.GetComponentInParent<NetworkPlayer>();
+            if (networkPlayer == null || networkPlayer.Object == null)
+                return;
+
+            if (CoopNetworkManager.Instance.IsHosting)
+            {
+                CoopMissionSync.Instance?.TryCompleteAtExtraction(networkPlayer);
+            }
+            else
+            {
+                CoopNetworkManager.Instance.SendCoopExtractionReached(networkPlayer.Object.InputAuthority.PlayerId);
+            }
+
+            return;
+        }
+
         if (other.gameObject != player)
             return;
 

@@ -28,6 +28,7 @@ public class Enemy_Visuals : MonoBehaviour
     private float leftHandTargetWeight;
     private float weaponAimTargetWeight;
     private float rigChangeRate;
+    private bool lookConfigured;
 
     private void Update()
     {
@@ -58,9 +59,29 @@ public class Enemy_Visuals : MonoBehaviour
 
     public void SetupLook()
     {
+        if (lookConfigured)
+            return;
+
+        SetupLookInternal();
+    }
+
+    public void SetupLook(int deterministicSeed)
+    {
+        if (lookConfigured)
+            return;
+
+        Random.State previousState = Random.state;
+        Random.InitState(deterministicSeed);
+        SetupLookInternal();
+        Random.state = previousState;
+    }
+
+    private void SetupLookInternal()
+    {
         SetupRandomColor();
         SetupRandomWeapon();
         SetupRandomCorrution();
+        lookConfigured = true;
     }
 
     private void SetupRandomCorrution()

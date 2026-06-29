@@ -15,12 +15,38 @@ public class MissionObject_Key : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (GameSessionData.IsCoopSession)
+        {
+            NetworkPlayer networkPlayer = other.GetComponentInParent<NetworkPlayer>();
+            if (networkPlayer == null || networkPlayer.Object == null)
+                return;
+
+            if (CoopNetworkManager.Instance.IsHosting)
+                CompletePickupFromHost();
+            else
+                CoopNetworkManager.Instance.SendCoopKeyPickupRequest(transform.position);
+
+            return;
+        }
+
         if (other.gameObject != player)
             return;
 
-        OnKeyPickedUp?.Invoke();
-        Destroy(gameObject);
+        CompletePickupFromHost();
     }
 
+    public void CompletePickupFromHost()
+    {
+        Vector3 position = transform.position;
+        OnKeyPickedUp?.Invoke();
+        Destroy(gameObject);
 
+        if (GameSessionData.IsCoopSession && CoopNetworkManager.Instance.IsHosting)
+            CoopNetworkManager.Instance.BroadcastCoopKeyRemoved(position);
+    }
+
+    public void HideWithoutMissionEvent()
+    {
+        Destroy(gameObject);
+    }
 }

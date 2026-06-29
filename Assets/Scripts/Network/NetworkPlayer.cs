@@ -6,6 +6,8 @@ using UnityEngine;
 public class NetworkPlayer : NetworkBehaviour
 {
     private const float MinAimDirectionSqrMagnitude = 0.0025f;
+    private const int MaxReplicatedEnemies = 64;
+    private const int EnemyReplicationTickStride = 3;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 1.5f;
@@ -29,6 +31,10 @@ public class NetworkPlayer : NetworkBehaviour
     [Networked] public int NetWeaponSlotIndex { get; private set; }
     [Networked] public int NetFireTick { get; private set; }
     [Networked] public NetworkBool NetReloading { get; private set; }
+    [Networked] public int NetEnemyCount { get; private set; }
+    [Networked] public int NetEnemySequence { get; private set; }
+    [Networked, Capacity(MaxReplicatedEnemies)]
+    public NetworkArray<NetworkEnemyFusionState> NetEnemyStates => default;
 
     private NetworkCharacterController networkCharacterController;
     private NetworkPlayerHealth health;
@@ -37,6 +43,8 @@ public class NetworkPlayer : NetworkBehaviour
     private Vector3 frozenCameraPosition;
     private Vector3 lastFlatAimDirection;
     private bool cameraFrozen;
+    private int enemyReplicationTick;
+    private int lastRenderedEnemySequence;
 
     public NetworkPlayerHealth Health => health;
     public Transform CameraTarget => cameraTarget;
@@ -112,6 +120,8 @@ public class NetworkPlayer : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        PublishEnemyStatesFromHost();
+
         if (health != null && health.IsDead)
             return;
 
@@ -122,19 +132,62 @@ public class NetworkPlayer : NetworkBehaviour
             NetIsRunning = input.Run;
 
             ApplyMovement(input);
+
+            if (Object.HasInputAuthority && input.InteractPressed)
+                CoopPickupCoordinator.Instance?.RequestNearestPickup(this);
         }
     }
 
     public override void Render()
     {
+        RenderReplicatedEnemyStates();
+
         if (health != null && health.IsDead)
         {
-            FreezeCameraAtDeathPosition();
             return;
         }
 
         UpdateCameraTarget();
         presentation?.RenderPresentation();
+    }
+
+    private void PublishEnemyStatesFromHost()
+    {
+        if (Runner == null
+            || Runner.IsServer == false
+            || Object == null
+            || Object.HasInputAuthority == false)
+            return;
+
+        enemyReplicationTick++;
+        if (enemyReplicationTick % EnemyReplicationTickStride != 0)
+            return;
+
+        int count = NetworkEnemy.GetFusionStateCount(MaxReplicatedEnemies);
+        NetEnemyCount = count;
+        NetEnemySequence++;
+
+        for (int i = 0; i < count; i++)
+        {
+            NetworkEnemyFusionState state = default;
+            NetworkEnemy.TryCaptureFusionState(i, out state);
+            NetEnemyStates.Set(i, state);
+        }
+    }
+
+    private void RenderReplicatedEnemyStates()
+    {
+        if (Runner == null
+            || Runner.IsServer
+            || NetEnemyCount <= 0
+            || NetEnemySequence <= lastRenderedEnemySequence)
+            return;
+
+        lastRenderedEnemySequence = NetEnemySequence;
+        int count = Mathf.Min(NetEnemyCount, MaxReplicatedEnemies);
+
+        for (int i = 0; i < count; i++)
+            NetworkEnemy.ApplyFusionState(NetEnemyStates[i], NetEnemySequence);
     }
 
     public void SetWeaponVisualState(WeaponType weaponType, int slotIndex)

@@ -48,6 +48,8 @@ public class CoopPlayerPresentation : MonoBehaviour
         && networkPlayer.Object != null
         && networkPlayer.Object.HasInputAuthority;
 
+    public Transform PlayerBody => playerBody != null ? playerBody : transform;
+
     public void Initialize(NetworkPlayer player, NetworkPlayerWeapon weapon)
     {
         networkPlayer = player;
@@ -519,6 +521,17 @@ public class CoopPlayerPresentation : MonoBehaviour
 
         if (activeSource != null && activeSource.isPlaying == false)
             activeSource.Play();
+    }
+
+    public void ApplyDeathVisual()
+    {
+        sound?.walkSFX?.Stop();
+        sound?.runSFX?.Stop();
+
+        if (animator != null)
+            animator.enabled = false;
+
+        GetComponentInChildren<Ragdoll>(true)?.RagdollActive(true);
     }
 
     private void ApplyBackupWeaponVisuals(WeaponType currentWeaponType, IReadOnlyList<Weapon> weaponSlots)

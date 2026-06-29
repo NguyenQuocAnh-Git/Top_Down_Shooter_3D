@@ -85,7 +85,18 @@ public class Enemy_Range : Enemy
     {
         base.Start();
 
-        playersBody = player.GetComponent<Player>().playerBody;
+        if (GameSessionData.IsCoopSession)
+        {
+            NetworkPlayer networkPlayer = player != null ? player.GetComponent<NetworkPlayer>() : null;
+            playersBody = networkPlayer != null && networkPlayer.Presentation != null
+                ? networkPlayer.Presentation.PlayerBody
+                : player;
+        }
+        else
+        {
+            Player singlePlayer = player != null ? player.GetComponent<Player>() : null;
+            playersBody = singlePlayer != null ? singlePlayer.playerBody : player;
+        }
         aim.parent = null;
 
         InitializePerk();
@@ -135,10 +146,22 @@ public class Enemy_Range : Enemy
         if (stateMachine.currentState == deadState)
         {
             newGrenadeScript.SetupGrenade(whatIsAlly, transform.position, 1,explosionTimer,impactPower,grenadeDamage);
+            CoopEnemyProjectileGhost.ReportHostSpawn(
+                CoopEnemyProjectileKind.Grenade,
+                this,
+                newGrenade,
+                newGrenade.GetComponent<Rigidbody>().velocity,
+                explosionTimer + 1f);
             return;
         }
 
         newGrenadeScript.SetupGrenade(whatIsAlly,player.transform.position, timeToTarget,explosionTimer,impactPower,grenadeDamage);
+        CoopEnemyProjectileGhost.ReportHostSpawn(
+            CoopEnemyProjectileKind.Grenade,
+            this,
+            newGrenade,
+            newGrenade.GetComponent<Rigidbody>().velocity,
+            explosionTimer + timeToTarget);
     }
 
     protected override void InitializePerk()
@@ -168,6 +191,23 @@ public class Enemy_Range : Enemy
 
         int randomIndex = UnityEngine.Random.Range(0, validTypes.Count);
         weaponType = validTypes[randomIndex];
+    }
+
+    public void ConfigureNetworkVisualSeed(int seed)
+    {
+        if (weaponType != Enemy_RangeWeaponType.Random)
+            return;
+
+        Enemy_RangeWeaponType[] validTypes =
+        {
+            Enemy_RangeWeaponType.Pistol,
+            Enemy_RangeWeaponType.Revolver,
+            Enemy_RangeWeaponType.Shotgun,
+            Enemy_RangeWeaponType.AutoRifle
+        };
+
+        var random = new System.Random(seed);
+        weaponType = validTypes[random.Next(0, validTypes.Length)];
     }
 
     public override void EnterBattleMode()
@@ -275,6 +315,13 @@ public class Enemy_Range : Enemy
 
         rbNewBullet.mass = 20 / weaponData.bulletSpeed;
         rbNewBullet.velocity = bulletDirectionWithSpread * weaponData.bulletSpeed;
+
+        CoopEnemyProjectileGhost.ReportHostSpawn(
+            CoopEnemyProjectileKind.Bullet,
+            this,
+            newBullet,
+            rbNewBullet.velocity,
+            100f / Mathf.Max(1f, weaponData.bulletSpeed));
 
     }
     private void SetupWeapon()

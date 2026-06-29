@@ -180,6 +180,13 @@ public class Enemy_Melee : Enemy
         GameObject newAxe = ObjectPool.instance.GetObject(axePrefab, axeStartPoint);
 
         newAxe.GetComponent<Enemy_Axe>().AxeSetup(axeFlySpeed, player, axeAimTimer,axeDamage);
+        Vector3 visualVelocity = (player.position + Vector3.up - newAxe.transform.position).normalized * axeFlySpeed;
+        CoopEnemyProjectileGhost.ReportHostSpawn(
+            CoopEnemyProjectileKind.Axe,
+            this,
+            newAxe,
+            visualVelocity,
+            Mathf.Max(axeAimTimer + 2f, 3f));
     }
     public bool CanThrowAxe()
     {

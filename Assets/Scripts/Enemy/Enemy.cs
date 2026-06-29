@@ -41,6 +41,8 @@ public class Enemy : MonoBehaviour
 
     public Enemy_DropController dropController { get; private set; }
     public AudioManager audioManager { get; private set; }
+    public bool CanProcessAnimationEvents => stateMachine != null && stateMachine.currentState != null;
+    private float nextCoopTargetRefresh;
 
     protected virtual void Awake()
     {
@@ -52,7 +54,13 @@ public class Enemy : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         anim = GetComponentInChildren<Animator>();
         dropController = GetComponent<Enemy_DropController>();
-        player = GameObject.Find("Player").GetComponent<Transform>();
+        if (GameSessionData.IsCoopSession)
+            RefreshCoopPlayerTarget();
+        else
+        {
+            GameObject scenePlayer = GameObject.Find("Player");
+            player = scenePlayer != null ? scenePlayer.transform : null;
+        }
     }
 
     protected virtual void Start()
@@ -65,6 +73,12 @@ public class Enemy : MonoBehaviour
 
     protected virtual void Update()
     {
+        if (GameSessionData.IsCoopSession && Time.time >= nextCoopTargetRefresh)
+        {
+            nextCoopTargetRefresh = Time.time + 0.5f;
+            RefreshCoopPlayerTarget();
+        }
+
         if (ShouldEnterBattleMode())
             EnterBattleMode();
     }
@@ -130,28 +144,53 @@ public class Enemy : MonoBehaviour
 
         foreach (Transform attackPoint in damagePoints)
         {
-            Collider[] detectedHits =
-                Physics.OverlapSphere(attackPoint.position, attackCheckRadius, whatIsPlayer);
+            if (TryApplyMeleeDamage(attackPoint.position, attackCheckRadius, damage, fx, attackPoint))
+                return;
+        }
+    }
 
+    private bool TryApplyMeleeDamage(Vector3 attackPoint, float attackCheckRadius, int damage, GameObject fx, Transform fxAnchor)
+    {
+        Collider[] detectedHits = Physics.OverlapSphere(attackPoint, attackCheckRadius, whatIsPlayer);
 
-            for (int i = 0; i < detectedHits.Length; i++)
-            {
-                IDamagable damagable = detectedHits[i].GetComponent<IDamagable>();
-
-                if (damagable != null)
-                {
-
-                    damagable.TakeDamage(damage);
-                    isMeleeAttackReady = false;
-                    GameObject newAttackFx = ObjectPool.instance.GetObject(fx, attackPoint);
-
-                    ObjectPool.instance.ReturnObject(newAttackFx, 1);
-                    return;
-                }
-            }
-
+        for (int i = 0; i < detectedHits.Length; i++)
+        {
+            if (TryDamageTarget(detectedHits[i], damage, fx, fxAnchor))
+                return true;
         }
 
+        if (GameSessionData.IsCoopSession == false)
+            return false;
+
+        Collider[] coopHits = Physics.OverlapSphere(attackPoint, attackCheckRadius);
+        for (int i = 0; i < coopHits.Length; i++)
+        {
+            if (coopHits[i].GetComponentInParent<NetworkPlayerHitbox>() == null)
+                continue;
+
+            if (TryDamageTarget(coopHits[i], damage, fx, fxAnchor))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool TryDamageTarget(Collider hitCollider, int damage, GameObject fx, Transform fxAnchor)
+    {
+        IDamagable damagable = hitCollider.GetComponentInParent<IDamagable>();
+        if (damagable == null)
+            return false;
+
+        damagable.TakeDamage(damage);
+        isMeleeAttackReady = false;
+
+        if (fx != null && fxAnchor != null && ObjectPool.instance != null)
+        {
+            GameObject newAttackFx = ObjectPool.instance.GetObject(fx, fxAnchor);
+            ObjectPool.instance.ReturnObject(newAttackFx, 1);
+        }
+
+        return true;
     }
 
     public void EnableMeleeAttackCheck(bool enable) => isMeleeAttackReady = enable;
@@ -192,13 +231,18 @@ public class Enemy : MonoBehaviour
 
     public void ActivateManualRotation(bool manualRotation) => this.manualRotation = manualRotation;
     public bool ManualRotationActive() => manualRotation;
-    public void AnimationTrigger() => stateMachine.currentState.AnimationTrigger();
+    public void AnimationTrigger()
+    {
+        if (CanProcessAnimationEvents)
+            stateMachine.currentState.AnimationTrigger();
+    }
 
 
 
     public virtual void AbilityTrigger()
     {
-        stateMachine.currentState.AbilityTrigger();
+        if (CanProcessAnimationEvents)
+            stateMachine.currentState.AbilityTrigger();
     }
 
     #endregion
@@ -228,7 +272,30 @@ public class Enemy : MonoBehaviour
 
     #endregion
 
-    public bool IsPlayerInAgrresionRange() => Vector3.Distance(transform.position, player.position) < aggresionRange;
+    public bool IsPlayerInAgrresionRange() => player != null && Vector3.Distance(transform.position, player.position) < aggresionRange;
+
+    private void RefreshCoopPlayerTarget()
+    {
+        NetworkPlayer[] players = FindObjectsOfType<NetworkPlayer>();
+        float nearestDistance = float.MaxValue;
+        Transform nearest = null;
+
+        foreach (NetworkPlayer networkPlayer in players)
+        {
+            if (networkPlayer.Health != null && networkPlayer.Health.IsDead)
+                continue;
+
+            float distance = (networkPlayer.transform.position - transform.position).sqrMagnitude;
+            if (distance >= nearestDistance)
+                continue;
+
+            nearestDistance = distance;
+            nearest = networkPlayer.transform;
+        }
+
+        if (nearest != null)
+            player = nearest;
+    }
     protected virtual void OnDrawGizmos()
     {
         Gizmos.DrawWireSphere(transform.position, aggresionRange);

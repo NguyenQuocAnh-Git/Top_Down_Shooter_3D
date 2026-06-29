@@ -11,5 +11,6 @@ public struct CoopPlayerInput : INetworkInput
     public NetworkBool Run;
     public NetworkBool ReloadPressed;
     public NetworkBool ToggleWeaponModePressed;
+    public NetworkBool InteractPressed;
     public byte EquipSlotPressed;
 }

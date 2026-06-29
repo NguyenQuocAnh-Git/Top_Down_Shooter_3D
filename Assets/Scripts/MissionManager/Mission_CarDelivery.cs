@@ -18,6 +18,7 @@ public class Mission_CarDelivery : Mission
         UI.instance.inGameUI.UpdateMissionInfo(missionText, missionDetails);
 
         carWasDelivered = false;
+        MissionObject_CarToDeliver.OnCarDelivery -= CarDeliveryCompleted;
         MissionObject_CarToDeliver.OnCarDelivery += CarDeliveryCompleted;
 
         Car_Controller[] cars = FindObjectsOfType<Car_Controller>();

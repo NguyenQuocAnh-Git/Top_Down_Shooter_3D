@@ -16,8 +16,32 @@ public class Cover : MonoBehaviour
 
     private void Start()
     {
+        // Cover selection is gameplay AI and therefore host-only in co-op.
+        // Client replicas only need the cover geometry.
+        if (GameSessionData.IsCoopSession && CoopNetworkManager.Instance.IsHosting == false)
+        {
+            enabled = false;
+            return;
+        }
+
         GenerateCoverPoints();
-        playerTransform = FindObjectOfType<Player>().transform;
+
+        if (GameSessionData.IsCoopSession)
+        {
+            NetworkPlayer networkPlayer = FindObjectOfType<NetworkPlayer>();
+            playerTransform = networkPlayer != null ? networkPlayer.transform : null;
+        }
+        else
+        {
+            Player player = FindObjectOfType<Player>();
+            playerTransform = player != null ? player.transform : null;
+        }
+
+        if (playerTransform == null)
+        {
+            Debug.LogWarning($"[COVER] No player target found for {name}; cover AI disabled.", this);
+            enabled = false;
+        }
     }
 
     private void GenerateCoverPoints()
@@ -43,6 +67,9 @@ public class Cover : MonoBehaviour
     public List<CoverPoint> GetValidCoverPoints(Transform enemy)
     {
         List<CoverPoint> validCoverPoints = new List<CoverPoint>();
+
+        if (playerTransform == null || enemy == null)
+            return validCoverPoints;
 
         foreach (CoverPoint coverPoint in coverPoints)
         {

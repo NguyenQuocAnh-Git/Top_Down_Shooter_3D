@@ -9,6 +9,13 @@ public class NetworkPlayerHitbox : HitBox, IDamagable
     {
         base.Awake();
         health = GetComponentInParent<NetworkPlayerHealth>();
+
+        if (GameSessionData.IsCoopSession)
+        {
+            int playerLayer = LayerMask.NameToLayer("Player");
+            if (playerLayer >= 0)
+                gameObject.layer = playerLayer;
+        }
     }
 
     public override void TakeDamage(int damage)
@@ -17,9 +24,10 @@ public class NetworkPlayerHitbox : HitBox, IDamagable
             return;
 
         int scaledDamage = Mathf.RoundToInt(damage * damageMultiplier);
+        if (scaledDamage <= 0 || health == null)
+            return;
 
-        if (health != null && health.Object != null && health.Object.HasStateAuthority)
-            health.ApplyDamageFromHost(scaledDamage);
+        health.ApplyDamageFromHost(scaledDamage);
     }
 
     public NetworkObject GetNetworkObject()
