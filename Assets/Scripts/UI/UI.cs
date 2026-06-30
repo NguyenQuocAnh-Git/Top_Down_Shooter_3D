@@ -82,15 +82,25 @@ public class UI : MonoBehaviour
 
     public void SwitchTo(GameObject uiToSwitchOn)
     {
+        if (uiToSwitchOn == null)
+        {
+            Debug.LogError("[UI] Cannot switch to an unassigned UI object.", this);
+            return;
+        }
+
         if (ShouldReturnToMenuScene(uiToSwitchOn))
         {
             LoadMenuScene();
             return;
         }
 
-        foreach (GameObject go in UIElements)
+        if (UIElements != null)
         {
-            go.SetActive(false);
+            foreach (GameObject go in UIElements)
+            {
+                if (go != null)
+                    go.SetActive(false);
+            }
         }
 
         foreach (GameObject go in runtimeUIElements)

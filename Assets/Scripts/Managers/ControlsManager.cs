@@ -54,7 +54,11 @@ public class ControlsManager : MonoBehaviour
 
         controls.Car.Disable();
         controls.Character.Disable();
-        player.SetControlsEnabledTo(false);
+
+        // The single-player Player is disabled and never assigned during COOP.
+        // Network input is already stopped by disabling the Character action map.
+        if (player != null)
+            player.SetControlsEnabledTo(false);
     }
 
     public void SwitchToCarControls()

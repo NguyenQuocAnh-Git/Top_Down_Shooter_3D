@@ -13,6 +13,7 @@ public class CoopMissionSync : MonoBehaviour
 
     private NetworkRunner runner;
     private bool matchFinished;
+    private MissionEnd_Trigger extractionTrigger;
     private float nextMissionBroadcastTime;
     private string pendingMissionTitle = string.Empty;
     private string pendingMissionDetails = string.Empty;
@@ -47,6 +48,14 @@ public class CoopMissionSync : MonoBehaviour
         MissionManager.instance.StartMission();
     }
 
+    private void Update()
+    {
+        if (IsHost == false || matchFinished)
+            return;
+
+        TryDetectPlayerAtExtraction();
+    }
+
     public void PublishMissionInfo(string title, string details)
     {
         if (IsHost == false || matchFinished)
@@ -67,8 +76,8 @@ public class CoopMissionSync : MonoBehaviour
         if (IsHost == false || matchFinished || player == null || player.Health == null || player.Health.IsDead)
             return;
 
-        if (MissionManager.instance != null && MissionManager.instance.MissionCompleted())
-            ConfirmMatchResult(true);
+        Debug.Log($"[COOP] Host accepted extraction for player {player.Object.InputAuthority.PlayerId}.");
+        ConfirmMatchResult(true);
     }
 
     public void ConfirmTeamWipe()
@@ -141,7 +150,34 @@ public class CoopMissionSync : MonoBehaviour
             return;
 
         matchFinished = true;
+        Debug.Log($"[COOP] Match result confirmed by host: {(victory ? "VICTORY" : "GAME OVER")}.");
         CoopNetworkManager.Instance.BroadcastCoopMatchResult(victory);
+    }
+
+    private void TryDetectPlayerAtExtraction()
+    {
+        if (extractionTrigger == null)
+            extractionTrigger = FindObjectOfType<MissionEnd_Trigger>();
+
+        if (extractionTrigger == null)
+            return;
+
+        foreach (PlayerRef playerRef in runner.ActivePlayers)
+        {
+            if (runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) == false
+                || playerObject == null)
+                continue;
+
+            NetworkPlayer player = playerObject.GetComponent<NetworkPlayer>();
+            if (player == null || player.Health == null || player.Health.IsDead)
+                continue;
+
+            if (extractionTrigger.ContainsWorldPosition(player.transform.position) == false)
+                continue;
+
+            TryCompleteAtExtraction(player);
+            return;
+        }
     }
 
     private void ApplyMissionState(byte[] payload)
@@ -163,19 +199,24 @@ public class CoopMissionSync : MonoBehaviour
         return null;
     }
 
-    private static bool AllNetworkPlayersDead()
+    private bool AllNetworkPlayersDead()
     {
-        NetworkPlayer[] players = FindObjectsOfType<NetworkPlayer>();
-        if (players.Length == 0)
-            return false;
+        int activePlayerCount = 0;
 
-        foreach (NetworkPlayer player in players)
+        foreach (PlayerRef playerRef in runner.ActivePlayers)
         {
-            if (player.Health == null || player.Health.IsDead == false)
+            activePlayerCount++;
+
+            if (runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) == false
+                || playerObject == null)
+                return false;
+
+            NetworkPlayerHealth health = playerObject.GetComponent<NetworkPlayerHealth>();
+            if (health == null || health.IsDead == false)
                 return false;
         }
 
-        return true;
+        return activePlayerCount > 0;
     }
 
     private static MissionObject_Key FindNearestKey(Vector3 position, float maxDistance)

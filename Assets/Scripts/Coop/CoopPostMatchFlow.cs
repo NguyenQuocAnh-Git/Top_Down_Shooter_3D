@@ -20,15 +20,19 @@ public class CoopPostMatchFlow : MonoBehaviour
             return;
 
         resultShown = true;
-        ControlsManager.instance?.SwitchToUIControls();
+        Debug.Log($"[COOP] Showing local match result: {(victory ? "VICTORY" : "GAME OVER")}.");
 
-        if (victory == false)
-            TimeManager.instance?.SlowMotionFor(1.5f);
-
+        // Show the result first so an unrelated input/time effect can never
+        // prevent the Win/Lose screen from becoming visible.
         if (victory)
             UI.instance?.ShowVictoryScreenUI();
         else
             UI.instance?.ShowGameOverUI("TEAM WIPED!");
+
+        ControlsManager.instance?.SwitchToUIControls();
+
+        if (victory == false)
+            TimeManager.instance?.SlowMotionFor(1.5f);
 
         if (runner != null && runner.IsServer)
             StartCoroutine(ReturnHostToLobby());

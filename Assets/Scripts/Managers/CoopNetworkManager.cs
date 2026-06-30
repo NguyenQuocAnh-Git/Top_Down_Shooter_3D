@@ -1635,7 +1635,7 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
         if (key == CoopExtractionReachedKey)
         {
             if (activeRunner.IsServer && data.Count > 0)
-                DispatchCoopExtractionReached(data.Array[data.Offset]);
+                DispatchCoopExtractionReached(player.PlayerId);
             return;
         }
 
@@ -1838,7 +1838,11 @@ public class CoopNetworkManager : MonoBehaviour, INetworkRunnerCallbacks
         if (runner == null || runner.IsRunning == false)
             return;
 
-        payload ??= Array.Empty<byte>();
+        // Fusion reliable messages require at least one data byte. Team-wipe
+        // reports carry no fields, so provide a sentinel instead of [] to
+        // avoid NetPeerGroup.SendReliable asserting before the host sees it.
+        if (payload == null || payload.Length == 0)
+            payload = new byte[] { 0 };
 
         if (runner.IsServer)
         {

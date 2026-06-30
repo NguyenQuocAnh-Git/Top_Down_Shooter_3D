@@ -44,14 +44,19 @@ public class CoopTeamDeathHandler : MonoBehaviour
             }
         }
 
-        if (wipeReported == false && AllPlayersDead(players))
+        if (wipeReported == false && AllActivePlayersDead())
         {
-            wipeReported = true;
-
             if (runner.IsServer)
-                CoopMissionSync.Instance?.ConfirmTeamWipe();
+            {
+                if (CoopMissionSync.Instance == null)
+                    return;
+
+                CoopMissionSync.Instance.ConfirmTeamWipe();
+            }
             else
                 CoopNetworkManager.Instance.SendCoopTeamWipeReport();
+
+            wipeReported = true;
         }
     }
 
@@ -66,14 +71,23 @@ public class CoopTeamDeathHandler : MonoBehaviour
         return null;
     }
 
-    private static bool AllPlayersDead(NetworkPlayer[] players)
+    private bool AllActivePlayersDead()
     {
-        foreach (NetworkPlayer player in players)
+        int activePlayerCount = 0;
+
+        foreach (PlayerRef playerRef in runner.ActivePlayers)
         {
-            if (player.Health == null || player.Health.IsDead == false)
+            activePlayerCount++;
+
+            if (runner.TryGetPlayerObject(playerRef, out NetworkObject playerObject) == false
+                || playerObject == null)
+                return false;
+
+            NetworkPlayerHealth health = playerObject.GetComponent<NetworkPlayerHealth>();
+            if (health == null || health.IsDead == false)
                 return false;
         }
 
-        return true;
+        return activePlayerCount > 0;
     }
 }
